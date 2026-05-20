@@ -164,3 +164,27 @@ API Token：你的 APP_API_TOKEN
 ```
 
 不要在 Flutter 里写 Twelve Data Key，Twelve Data Key 只放在 Cloudflare Pages 的 Secret 里。
+
+
+## v1.4.0 稳定性增强说明
+
+本版在 v1.3 股票接口修复基础上继续加固：
+
+- 所有上游请求增加超时控制，避免接口长时间卡住。
+- 缓存改成“可用期 + 过期兜底”模式：上游临时失败时，能返回上一轮缓存数据，并标记 `stale: true`。
+- `/api/portfolio/valuate` 改为并发限流估值，某个资产失败不会影响其它资产。
+- 股票 / ETF 搜索增加本地兜底列表，Twelve Data 搜索失败时仍能返回常见代码。
+- 虚拟币搜索增加本地兜底，CoinGecko 搜索失败时仍可返回常见币种。
+- CORS 增加 `authorization` header 支持。
+- `/api/debug/self-test` 新增全链路自检，可检查 FX / Crypto / Metal / Stock 是否正常。
+- 错误信息会自动隐藏 `apikey`，避免日志中泄露密钥。
+
+部署后建议依次测试：
+
+```text
+/api/debug/env?token=你的_APP_API_TOKEN
+/api/debug/self-test?token=你的_APP_API_TOKEN
+/api/fx?base=USD&quote=CNY&amount=700&token=你的_APP_API_TOKEN
+/api/stock?symbol=AAPL&quote=CNY&token=你的_APP_API_TOKEN
+/api/portfolio/valuate
+```

@@ -18,7 +18,7 @@
   <section class="hero">
     <h1>Ledger Quote API</h1>
     <p>个人记账 App 使用的行情聚合 API。资产和借款仍然保存在 App 本地，这个 API 只负责汇率、股票、ETF、黄金白银、虚拟币估值。</p>
-    <span class="tag">Cloudflare Pages Functions</span><span class="tag">Twelve Data</span><span class="tag">CoinGecko</span><span class="tag">Frankfurter</span><span class="tag">Gold API</span>
+    <span class="tag">Cloudflare Pages Functions</span><span class="tag">v1.4.0</span><span class="tag">Twelve Data</span><span class="tag">CoinGecko</span><span class="tag">Frankfurter</span><span class="tag">Gold API</span>
   </section>
 
   <section class="card">
@@ -38,6 +38,8 @@
       <tr><th>功能</th><th>方法</th><th>路径</th></tr>
       <tr><td>健康检查</td><td>GET</td><td><code>/api/health</code></td></tr>
       <tr><td>配置</td><td>GET</td><td><code>/api/config</code></td></tr>
+      <tr><td>环境检查</td><td>GET</td><td><code>/api/debug/env</code></td></tr>
+      <tr><td>全链路自检</td><td>GET</td><td><code>/api/debug/self-test</code></td></tr>
       <tr><td>汇率</td><td>GET</td><td><code>/api/fx?base=USD&amp;quote=CNY&amp;amount=700</code></td></tr>
       <tr><td>虚拟币</td><td>GET</td><td><code>/api/crypto?ids=solana,bitcoin,tether&amp;quote=CNY</code></td></tr>
       <tr><td>黄金白银</td><td>GET</td><td><code>/api/metal?symbol=XAU&amp;unit=gram&amp;quote=CNY</code></td></tr>
