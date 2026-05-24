@@ -1,4 +1,4 @@
-const VERSION = "1.7.0-pages-crypto-cache-fallback";
+const VERSION = "1.8.0-pages-cn-a-share";
 const DEFAULT_CACHE_TTL_SECONDS = 15 * 60;
 const STALE_CACHE_SECONDS = 7 * 24 * 60 * 60;
 const TROY_OUNCE_GRAMS = 31.1034768;
@@ -40,6 +40,45 @@ const LOCAL_MARKET_OPTIONS = [
   { assetType: "etf", name: "Vanguard Total International Stock ETF", symbol: "VXUS", displayCode: "VXUS", quoteCurrency: "USD", exchange: "NASDAQ" },
   { assetType: "etf", name: "Schwab U.S. Dividend Equity ETF", symbol: "SCHD", displayCode: "SCHD", quoteCurrency: "USD", exchange: "NYSE" },
   { assetType: "etf", name: "iShares 0-3 Month Treasury Bond ETF", symbol: "SGOV", displayCode: "SGOV", quoteCurrency: "USD", exchange: "NASDAQ" },
+].map((item) => ({ ...item, provider: "local", unit: "", subtitle: [item.exchange, item.quoteCurrency].filter(Boolean).join(" · ") }));
+
+
+const LOCAL_CN_MARKET_OPTIONS = [
+  // A股常见股票
+  { assetType: "cn_stock", name: "贵州茅台", englishName: "Kweichow Moutai", symbol: "SH600519", displayCode: "600519", quoteCurrency: "CNY", exchange: "SSE" },
+  { assetType: "cn_stock", name: "中国平安", englishName: "Ping An Insurance", symbol: "SH601318", displayCode: "601318", quoteCurrency: "CNY", exchange: "SSE" },
+  { assetType: "cn_stock", name: "招商银行", englishName: "China Merchants Bank", symbol: "SH600036", displayCode: "600036", quoteCurrency: "CNY", exchange: "SSE" },
+  { assetType: "cn_stock", name: "工商银行", englishName: "ICBC", symbol: "SH601398", displayCode: "601398", quoteCurrency: "CNY", exchange: "SSE" },
+  { assetType: "cn_stock", name: "农业银行", englishName: "Agricultural Bank of China", symbol: "SH601288", displayCode: "601288", quoteCurrency: "CNY", exchange: "SSE" },
+  { assetType: "cn_stock", name: "中国石油", englishName: "PetroChina", symbol: "SH601857", displayCode: "601857", quoteCurrency: "CNY", exchange: "SSE" },
+  { assetType: "cn_stock", name: "中国石化", englishName: "Sinopec", symbol: "SH600028", displayCode: "600028", quoteCurrency: "CNY", exchange: "SSE" },
+  { assetType: "cn_stock", name: "中芯国际", englishName: "SMIC", symbol: "SH688981", displayCode: "688981", quoteCurrency: "CNY", exchange: "SSE" },
+  { assetType: "cn_stock", name: "紫金矿业", englishName: "Zijin Mining", symbol: "SH601899", displayCode: "601899", quoteCurrency: "CNY", exchange: "SSE" },
+  { assetType: "cn_stock", name: "药明康德", englishName: "WuXi AppTec", symbol: "SH603259", displayCode: "603259", quoteCurrency: "CNY", exchange: "SSE" },
+  { assetType: "cn_stock", name: "平安银行", englishName: "Ping An Bank", symbol: "SZ000001", displayCode: "000001", quoteCurrency: "CNY", exchange: "SZSE" },
+  { assetType: "cn_stock", name: "万科A", englishName: "Vanke A", symbol: "SZ000002", displayCode: "000002", quoteCurrency: "CNY", exchange: "SZSE" },
+  { assetType: "cn_stock", name: "五粮液", englishName: "Wuliangye", symbol: "SZ000858", displayCode: "000858", quoteCurrency: "CNY", exchange: "SZSE" },
+  { assetType: "cn_stock", name: "比亚迪", englishName: "BYD", symbol: "SZ002594", displayCode: "002594", quoteCurrency: "CNY", exchange: "SZSE" },
+  { assetType: "cn_stock", name: "宁德时代", englishName: "CATL", symbol: "SZ300750", displayCode: "300750", quoteCurrency: "CNY", exchange: "SZSE" },
+  { assetType: "cn_stock", name: "东方财富", englishName: "East Money", symbol: "SZ300059", displayCode: "300059", quoteCurrency: "CNY", exchange: "SZSE" },
+  { assetType: "cn_stock", name: "迈瑞医疗", englishName: "Mindray", symbol: "SZ300760", displayCode: "300760", quoteCurrency: "CNY", exchange: "SZSE" },
+  { assetType: "cn_stock", name: "立讯精密", englishName: "Luxshare Precision", symbol: "SZ002475", displayCode: "002475", quoteCurrency: "CNY", exchange: "SZSE" },
+  { assetType: "cn_stock", name: "京东方A", englishName: "BOE A", symbol: "SZ000725", displayCode: "000725", quoteCurrency: "CNY", exchange: "SZSE" },
+  { assetType: "cn_stock", name: "隆基绿能", englishName: "LONGi Green Energy", symbol: "SH601012", displayCode: "601012", quoteCurrency: "CNY", exchange: "SSE" },
+
+  // A股常见ETF / 场内基金
+  { assetType: "cn_etf", name: "沪深300ETF", englishName: "CSI 300 ETF", symbol: "SH510300", displayCode: "510300", quoteCurrency: "CNY", exchange: "SSE" },
+  { assetType: "cn_etf", name: "上证50ETF", englishName: "SSE 50 ETF", symbol: "SH510050", displayCode: "510050", quoteCurrency: "CNY", exchange: "SSE" },
+  { assetType: "cn_etf", name: "中证500ETF", englishName: "CSI 500 ETF", symbol: "SH510500", displayCode: "510500", quoteCurrency: "CNY", exchange: "SSE" },
+  { assetType: "cn_etf", name: "科创50ETF", englishName: "STAR 50 ETF", symbol: "SH588000", displayCode: "588000", quoteCurrency: "CNY", exchange: "SSE" },
+  { assetType: "cn_etf", name: "证券ETF", englishName: "Securities ETF", symbol: "SH512880", displayCode: "512880", quoteCurrency: "CNY", exchange: "SSE" },
+  { assetType: "cn_etf", name: "中证1000ETF", englishName: "CSI 1000 ETF", symbol: "SH512100", displayCode: "512100", quoteCurrency: "CNY", exchange: "SSE" },
+  { assetType: "cn_etf", name: "中概互联网ETF", englishName: "China Internet ETF", symbol: "SH513050", displayCode: "513050", quoteCurrency: "CNY", exchange: "SSE" },
+  { assetType: "cn_etf", name: "纳指ETF", englishName: "NASDAQ ETF", symbol: "SH513100", displayCode: "513100", quoteCurrency: "CNY", exchange: "SSE" },
+  { assetType: "cn_etf", name: "沪深300ETF", englishName: "CSI 300 ETF", symbol: "SZ159919", displayCode: "159919", quoteCurrency: "CNY", exchange: "SZSE" },
+  { assetType: "cn_etf", name: "创业板ETF", englishName: "ChiNext ETF", symbol: "SZ159915", displayCode: "159915", quoteCurrency: "CNY", exchange: "SZSE" },
+  { assetType: "cn_etf", name: "纳指ETF", englishName: "NASDAQ ETF", symbol: "SZ159941", displayCode: "159941", quoteCurrency: "CNY", exchange: "SZSE" },
+  { assetType: "cn_etf", name: "恒生科技ETF", englishName: "Hang Seng Tech ETF", symbol: "SZ159740", displayCode: "159740", quoteCurrency: "CNY", exchange: "SZSE" },
 ].map((item) => ({ ...item, provider: "local", unit: "", subtitle: [item.exchange, item.quoteCurrency].filter(Boolean).join(" · ") }));
 
 const LOCAL_METALS = [
@@ -85,9 +124,10 @@ export async function onRequest(context) {
         cacheTtlSeconds: DEFAULT_CACHE_TTL_SECONDS,
         staleCacheSeconds: STALE_CACHE_SECONDS,
         supportedDefaultCurrencies: SUPPORTED_DEFAULT_CURRENCIES,
-        assetTypes: ["cash", "manual", "crypto", "metal", "stock", "etf"],
+        assetTypes: ["cash", "manual", "crypto", "metal", "stock", "etf", "cn_stock", "cn_etf"],
         metalSymbols: ["XAU", "XAG", "XPT", "XPD"],
         searchEndpoint: "/api/search?type=stock&q=apple",
+        chinaStockEndpoint: "/api/cn-stock?symbol=600519&quote=CNY",
       });
     }
 
@@ -116,6 +156,7 @@ export async function onRequest(context) {
     if (url.pathname === "/api/crypto") return handleCrypto(url, env, ctx);
     if (url.pathname === "/api/metal") return handleMetal(url, env, ctx);
     if (url.pathname === "/api/stock") return handleStock(url, env, ctx);
+    if (url.pathname === "/api/cn-stock" || url.pathname === "/api/ashare") return handleChinaStock(url, env, ctx);
     if (url.pathname === "/api/search") return handleSearch(url, env, ctx);
 
     if (url.pathname === "/api/portfolio/valuate") {
@@ -292,14 +333,47 @@ async function handleStock(url, env, ctx) {
   });
 }
 
+
+async function handleChinaStock(url, env, ctx) {
+  const symbol = url.searchParams.get("symbol") || url.searchParams.get("code") || "600519";
+  const quote = upper(url.searchParams.get("quote") || "CNY");
+  const amount = toNumber(url.searchParams.get("amount") || "1", 1);
+  const stock = await getChinaStockPrice(symbol, quote, ctx);
+
+  return jsonResponse({
+    ok: true,
+    symbol: stock.symbol,
+    displayCode: stock.displayCode,
+    quote,
+    amount,
+    price: stock.price,
+    value: round(amount * stock.price),
+    sourceCurrency: "CNY",
+    sourcePrice: stock.sourcePrice,
+    provider: stock.provider,
+    cached: stock.cached,
+    stale: stock.stale || false,
+    updatedAt: stock.updatedAt,
+    raw: stock.rawSummary,
+  });
+}
+
 async function handleSearch(url, env, ctx) {
   const type = String(url.searchParams.get("type") || "stock").toLowerCase();
   const q = String(url.searchParams.get("q") || url.searchParams.get("query") || "").trim();
   const limit = clampInt(url.searchParams.get("limit"), 1, 30, 10);
 
+  if (["cn_stock", "a_stock", "ashare", "cn_etf", "a_etf"].includes(type)) {
+    const normalizedType = ["cn_etf", "a_etf"].includes(type) ? "cn_etf" : null;
+    const items = await searchChinaMarketOptions({ type: normalizedType, query: q, limit });
+    return jsonResponse({ ok: true, type, query: q, provider: "local A-share catalog", items });
+  }
+
   if (["stock", "etf"].includes(type)) {
     const items = await searchTwelveDataSymbols({ type, query: q, limit, env, ctx });
-    return jsonResponse({ ok: true, type, query: q, provider: items.some((i) => i.provider === "Twelve Data") ? "Twelve Data + local" : "local", items });
+    const cnItems = looksLikeChinaSearch(q) ? await searchChinaMarketOptions({ type: type === "etf" ? "cn_etf" : null, query: q, limit }) : [];
+    const mergedItems = mergeSearchItems(items, cnItems).slice(0, limit);
+    return jsonResponse({ ok: true, type, query: q, provider: mergedItems.some((i) => i.provider === "Twelve Data") ? "Twelve Data + local" : "local", items: mergedItems });
   }
 
   if (type === "crypto") {
@@ -474,11 +548,19 @@ async function valuateAsset(asset, defaultCurrency, env, ctx) {
     return baseAssetResult(asset, { id, name, type, symbol, unit: metal.unit, quantity, price: metal.price, sourceCurrency: defaultCurrency, value: round(quantity * metal.price), provider: metal.provider, stale: metal.stale || false, updatedAt: metal.updatedAt });
   }
 
+  if (type === "cn_stock" || type === "a_stock" || type === "cn_etf" || type === "a_etf") {
+    const symbol = asset?.symbol || asset?.code || "";
+    if (!symbol) throw new Error("A-share symbol is required");
+    const stock = await getChinaStockPrice(symbol, defaultCurrency, ctx);
+    return baseAssetResult(asset, { id, name, type: type === "cn_etf" || type === "a_etf" ? "cn_etf" : "cn_stock", symbol: stock.symbol, quantity, price: stock.price, sourcePrice: stock.sourcePrice, sourceCurrency: "CNY", value: round(quantity * stock.price), provider: stock.provider, stale: stock.stale || false, updatedAt: stock.updatedAt });
+  }
+
   if (type === "stock" || type === "etf") {
-    const symbol = upper(asset?.symbol || asset?.code || "");
+    const symbolRaw = asset?.symbol || asset?.code || "";
+    const symbol = upper(symbolRaw);
     if (!symbol) throw new Error("Stock symbol is required");
-    const stock = await getStockPrice(symbol, defaultCurrency, env, ctx);
-    return baseAssetResult(asset, { id, name, type, symbol, quantity, price: stock.price, sourcePrice: stock.sourcePrice, sourceCurrency: stock.sourceCurrency, value: round(quantity * stock.price), provider: stock.provider, stale: stock.stale || false, updatedAt: stock.updatedAt });
+    const stock = looksLikeChinaStockSymbol(symbolRaw) ? await getChinaStockPrice(symbolRaw, defaultCurrency, ctx) : await getStockPrice(symbol, defaultCurrency, env, ctx);
+    return baseAssetResult(asset, { id, name, type, symbol: stock.symbol || symbol, quantity, price: stock.price, sourcePrice: stock.sourcePrice, sourceCurrency: stock.sourceCurrency || "USD", value: round(quantity * stock.price), provider: stock.provider, stale: stock.stale || false, updatedAt: stock.updatedAt });
   }
 
   throw new Error(`Unsupported asset type: ${type}`);
@@ -495,6 +577,164 @@ async function valuateLiability(item, defaultCurrency, ctx) {
   const direction = ["receivable", "asset", "lend", "owed_to_me", "别人欠我"].includes(directionRaw) ? "receivable" : "payable";
   const fx = await getFxRate(currency, defaultCurrency, ctx);
   return { id: item?.id || null, name: item?.name || (direction === "payable" ? "我欠别人" : "别人欠我"), direction, amount, currency, value: round(amount * fx.rate), provider: fx.provider, stale: fx.stale || false, updatedAt: fx.updatedAt };
+}
+
+
+async function getChinaStockPrice(inputSymbol, targetCurrency, ctx) {
+  const normalized = normalizeChinaStockSymbol(inputSymbol);
+  if (!normalized) throw new Error(`Invalid A-share symbol: ${inputSymbol}`);
+
+  const cacheKey = `cn-stock:${normalized.tencent}`;
+  const data = await cachedJson(cacheKey, DEFAULT_CACHE_TTL_SECONDS, async () => {
+    try {
+      return await fetchEastMoneyChinaQuote(normalized);
+    } catch (eastMoneyError) {
+      try {
+        return await fetchTencentChinaQuote(normalized);
+      } catch (tencentError) {
+        const error = new Error(`A-share quote failed: ${cleanErrorMessage(eastMoneyError)}; ${cleanErrorMessage(tencentError)}`);
+        error.status = 502;
+        throw error;
+      }
+    }
+  }, ctx);
+
+  const raw = data.json || {};
+  const sourcePrice = firstNumber(raw.price, raw.current, raw.latest);
+  if (!Number.isFinite(sourcePrice)) throw new Error(`A-share price not found: ${inputSymbol}`);
+  const fx = await getFxRate("CNY", targetCurrency, ctx);
+  return {
+    symbol: normalized.display,
+    displayCode: normalized.code,
+    price: round(sourcePrice * fx.rate),
+    sourcePrice: round(sourcePrice),
+    sourceCurrency: "CNY",
+    provider: `${raw.provider || "A-share quote"} + ${fx.provider}`,
+    cached: Boolean(data.cached || fx.cached),
+    stale: Boolean(data.stale || fx.stale),
+    updatedAt: raw.updatedAt || data.updatedAt,
+    rawSummary: { name: raw.name, exchange: normalized.exchange, code: normalized.code, open: raw.open, previousClose: raw.previousClose, high: raw.high, low: raw.low, changePercent: raw.changePercent },
+  };
+}
+
+async function fetchTencentChinaQuote(normalized) {
+  const url = `https://qt.gtimg.cn/q=${encodeURIComponent(normalized.tencent)}`;
+  const text = await fetchText(url, { service: "Tencent A-share Quote", timeoutMs: 8000, headers: { referer: "https://gu.qq.com/" } });
+  const parsed = parseTencentChinaQuote(text, normalized);
+  if (!Number.isFinite(parsed.price) || parsed.price <= 0) throw new Error(`Tencent A-share price not found: ${normalized.tencent}`);
+  return parsed;
+}
+
+function parseTencentChinaQuote(text, normalized) {
+  const match = String(text || "").match(/="([^"]*)"/);
+  if (!match) throw new Error("Tencent A-share quote returned unexpected format");
+  const fields = match[1].split("~");
+  // 腾讯行情常见结构：name在1，code在2，最新价在3，昨收在4，今开在5。
+  const price = firstNumber(fields[3]);
+  return {
+    provider: "Tencent qt.gtimg.cn",
+    name: fields[1] || normalized.code,
+    code: fields[2] || normalized.code,
+    price,
+    previousClose: firstNumber(fields[4]),
+    open: firstNumber(fields[5]),
+    volume: firstNumber(fields[6]),
+    turnover: firstNumber(fields[37]),
+    high: firstNumber(fields[33]),
+    low: firstNumber(fields[34]),
+    changePercent: firstNumber(fields[32]),
+    updatedAt: fields[30] ? parseTencentTime(fields[30]) : new Date().toISOString(),
+  };
+}
+
+async function fetchEastMoneyChinaQuote(normalized) {
+  const url = new URL("https://push2.eastmoney.com/api/qt/stock/get");
+  url.searchParams.set("secid", normalized.eastMoneySecid);
+  url.searchParams.set("fields", "f43,f57,f58,f59,f60,f46,f44,f45,f47,f48,f170,f86");
+  const data = await fetchJson(url.toString(), { service: "EastMoney A-share Quote", timeoutMs: 8000 });
+  const row = data?.data || {};
+  const precision = Number.isFinite(Number(row.f59)) ? Number(row.f59) : 2;
+  const price = scaleEastMoneyPrice(row.f43, precision);
+  if (!Number.isFinite(price) || price <= 0) throw new Error(`EastMoney A-share price not found: ${normalized.eastMoneySecid}`);
+  return {
+    provider: "EastMoney push2",
+    name: row.f58 || normalized.code,
+    code: row.f57 || normalized.code,
+    price,
+    previousClose: scaleEastMoneyPrice(row.f60, precision),
+    open: scaleEastMoneyPrice(row.f46, precision),
+    high: scaleEastMoneyPrice(row.f44, precision),
+    low: scaleEastMoneyPrice(row.f45, precision),
+    volume: firstNumber(row.f47),
+    turnover: firstNumber(row.f48),
+    changePercent: scaleEastMoneyPrice(row.f170, 2),
+    updatedAt: row.f86 ? new Date(Number(row.f86) * 1000).toISOString() : new Date().toISOString(),
+  };
+}
+
+function scaleEastMoneyPrice(value, precision = 2) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= -100000000) return NaN;
+  return n / (10 ** precision);
+}
+
+function normalizeChinaStockSymbol(input) {
+  const raw = String(input || "").trim();
+  if (!raw) return null;
+  const compact = raw.replace(/\s+/g, "").replace(/^(CN|A):/i, "");
+  let exchange = "";
+  let code = "";
+
+  let m = compact.match(/^(sh|sse|ss)(\d{6})$/i);
+  if (m) { exchange = "SH"; code = m[2]; }
+  m = compact.match(/^(sz|szse)(\d{6})$/i);
+  if (!code && m) { exchange = "SZ"; code = m[2]; }
+  m = compact.match(/^(\d{6})\.(sh|ss|sse)$/i);
+  if (!code && m) { exchange = "SH"; code = m[1]; }
+  m = compact.match(/^(\d{6})\.(sz|szse)$/i);
+  if (!code && m) { exchange = "SZ"; code = m[1]; }
+  m = compact.match(/^(\d{6})$/);
+  if (!code && m) { code = m[1]; exchange = inferChinaExchange(code); }
+
+  if (!code || !exchange) return null;
+  const tencentPrefix = exchange === "SH" ? "sh" : "sz";
+  const eastMoneyMarket = exchange === "SH" ? "1" : "0";
+  return { exchange, code, tencent: `${tencentPrefix}${code}`, eastMoneySecid: `${eastMoneyMarket}.${code}`, display: `${exchange}${code}` };
+}
+
+function inferChinaExchange(code) {
+  // A股/场内基金常见规则：6/5/9开头多为上交所；0/1/2/3开头多为深交所。
+  if (/^[659]/.test(code)) return "SH";
+  if (/^[012348]/.test(code)) return "SZ";
+  return "";
+}
+
+function looksLikeChinaStockSymbol(value) {
+  return Boolean(normalizeChinaStockSymbol(value));
+}
+
+function looksLikeChinaSearch(query) {
+  const q = String(query || "").trim();
+  return /[\u4e00-\u9fff]/.test(q) || /^(sh|sz|sse|szse)?\d{3,6}/i.test(q) || /\.(sh|sz|ss|sse|szse)$/i.test(q);
+}
+
+async function searchChinaMarketOptions({ type = null, query = "", limit = 10 }) {
+  const q = String(query || "").trim().toLowerCase();
+  let list = LOCAL_CN_MARKET_OPTIONS;
+  if (type) list = list.filter((item) => item.assetType === type);
+  list = list.filter((item) => {
+    if (!q) return true;
+    return [item.name, item.englishName, item.symbol, item.displayCode, item.exchange].some((v) => String(v || "").toLowerCase().includes(q));
+  });
+  return list.slice(0, limit);
+}
+
+function parseTencentTime(value) {
+  const s = String(value || "");
+  const m = s.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/);
+  if (!m) return new Date().toISOString();
+  // 腾讯返回的是中国本地交易时间，转成 +08:00 ISO。
+  return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}+08:00`;
 }
 
 async function getStockPrice(symbol, targetCurrency, env, ctx) {
@@ -801,6 +1041,31 @@ async function cachedJson(cacheKey, ttlSeconds, fetcher, ctx) {
   }
 }
 
+
+async function fetchText(url, { service = "upstream", timeoutMs = FETCH_TIMEOUT_MS, headers = {} } = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort("timeout"), timeoutMs);
+  try {
+    const res = await fetch(url, { headers: { accept: "text/plain,*/*", ...headers }, signal: controller.signal });
+    const text = await res.text();
+    if (!res.ok) {
+      const err = new Error(`${service} HTTP ${res.status}: ${text.slice(0, 240)}`);
+      err.status = res.status >= 500 ? 502 : 400;
+      throw err;
+    }
+    return text;
+  } catch (error) {
+    if (error?.name === "AbortError" || String(error?.message || error).includes("abort")) {
+      const err = new Error(`${service} request timed out after ${Math.round(timeoutMs / 1000)}s`);
+      err.status = 504;
+      throw err;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function fetchJson(url, { service = "upstream", timeoutMs = FETCH_TIMEOUT_MS, env = null } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort("timeout"), timeoutMs);
@@ -928,7 +1193,7 @@ function withCors(response) {
 }
 
 function renderDocs(origin) {
-  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Ledger Quote API</title><style>:root{--bg:#f6f7fb;--card:#fff;--text:#101828;--muted:#667085;--line:#e6e9f2;--primary:#5367a7;--soft:#eef2ff;--danger:#c2410c}*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#f8faff 0%,var(--bg) 45%,#fff 100%);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",Arial,sans-serif;color:var(--text);line-height:1.65}main{max-width:1080px;margin:0 auto;padding:34px 18px 80px}.hero{padding:28px;border-radius:28px;background:radial-gradient(circle at 0 0,#eaf0ff,#fff 50%);border:1px solid var(--line);box-shadow:0 20px 60px rgba(28,45,89,.08)}h1{margin:0 0 8px;font-size:34px;letter-spacing:-.8px}h2{margin:34px 0 12px;font-size:22px}h3{margin:18px 0 8px}.muted,p,li{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}.card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:18px;box-shadow:0 16px 45px rgba(28,45,89,.06);margin:14px 0}.tag{display:inline-block;background:var(--soft);color:var(--primary);font-weight:700;border-radius:999px;padding:5px 11px;margin:4px 4px 0 0;font-size:13px}code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}pre{white-space:pre-wrap;word-break:break-word;background:#0f172a;color:#e5edff;border-radius:16px;padding:14px;overflow:auto}table{width:100%;border-collapse:collapse;border-radius:16px;overflow:hidden}th,td{border:1px solid var(--line);padding:10px;text-align:left;vertical-align:top}th{background:#f1f4fb}input,button{font:inherit}input{width:100%;border:1px solid var(--line);border-radius:14px;padding:12px;background:#fff}button{border:0;border-radius:14px;padding:12px 16px;background:var(--primary);color:#fff;font-weight:800;cursor:pointer}.danger{color:var(--danger)}.ok{color:#16794c}.result{min-height:96px}</style></head><body><main><section class="hero"><h1>Ledger Quote API</h1><p>个人记账 App 使用的行情聚合 API。资产和借款仍然保存在 App 本地，这个 API 只负责汇率、股票、ETF、黄金白银、虚拟币估值。</p><span class="tag">Cloudflare Pages Functions</span><span class="tag">v${VERSION}</span><span class="tag">Twelve Data</span><span class="tag">CoinGecko</span><span class="tag">Frankfurter</span><span class="tag">Gold API</span></section><section class="card"><h2>在线测试</h2><p>如果设置了 APP_API_TOKEN，输入 Token 后测试。</p><div class="grid"><div><label>API Token</label><input id="token" placeholder="填写你的 APP_API_TOKEN"/></div><div><label>测试接口</label><input id="path" value="/api/health"/></div></div><p><button onclick="testApi()">测试接口</button></p><pre id="result" class="result">等待测试...</pre></section><section class="card"><h2>接口列表</h2><table><tr><th>功能</th><th>方法</th><th>路径</th></tr><tr><td>健康检查</td><td>GET</td><td><code>/api/health</code></td></tr><tr><td>环境检查</td><td>GET</td><td><code>/api/debug/env</code></td></tr><tr><td>自检</td><td>GET</td><td><code>/api/debug/self-test</code></td></tr><tr><td>汇率</td><td>GET</td><td><code>/api/fx?base=USD&amp;quote=CNY&amp;amount=700</code></td></tr><tr><td>虚拟币</td><td>GET</td><td><code>/api/crypto?ids=solana,bitcoin,tether&amp;quote=CNY</code></td></tr><tr><td>黄金白银</td><td>GET</td><td><code>/api/metal?symbol=XAU&amp;unit=gram&amp;quote=CNY</code></td></tr><tr><td>股票 / ETF</td><td>GET</td><td><code>/api/stock?symbol=AAPL&amp;quote=CNY</code></td></tr><tr><td>搜索提示</td><td>GET</td><td><code>/api/search?type=stock&amp;q=apple</code></td></tr><tr><td>资产组合估值</td><td>POST</td><td><code>/api/portfolio/valuate</code></td></tr></table></section><section class="card"><h2>Flutter 主要调用</h2><pre>POST ${origin}/api/portfolio/valuate
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Ledger Quote API</title><style>:root{--bg:#f6f7fb;--card:#fff;--text:#101828;--muted:#667085;--line:#e6e9f2;--primary:#5367a7;--soft:#eef2ff;--danger:#c2410c}*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#f8faff 0%,var(--bg) 45%,#fff 100%);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",Arial,sans-serif;color:var(--text);line-height:1.65}main{max-width:1080px;margin:0 auto;padding:34px 18px 80px}.hero{padding:28px;border-radius:28px;background:radial-gradient(circle at 0 0,#eaf0ff,#fff 50%);border:1px solid var(--line);box-shadow:0 20px 60px rgba(28,45,89,.08)}h1{margin:0 0 8px;font-size:34px;letter-spacing:-.8px}h2{margin:34px 0 12px;font-size:22px}h3{margin:18px 0 8px}.muted,p,li{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}.card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:18px;box-shadow:0 16px 45px rgba(28,45,89,.06);margin:14px 0}.tag{display:inline-block;background:var(--soft);color:var(--primary);font-weight:700;border-radius:999px;padding:5px 11px;margin:4px 4px 0 0;font-size:13px}code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}pre{white-space:pre-wrap;word-break:break-word;background:#0f172a;color:#e5edff;border-radius:16px;padding:14px;overflow:auto}table{width:100%;border-collapse:collapse;border-radius:16px;overflow:hidden}th,td{border:1px solid var(--line);padding:10px;text-align:left;vertical-align:top}th{background:#f1f4fb}input,button{font:inherit}input{width:100%;border:1px solid var(--line);border-radius:14px;padding:12px;background:#fff}button{border:0;border-radius:14px;padding:12px 16px;background:var(--primary);color:#fff;font-weight:800;cursor:pointer}.danger{color:var(--danger)}.ok{color:#16794c}.result{min-height:96px}</style></head><body><main><section class="hero"><h1>Ledger Quote API</h1><p>个人记账 App 使用的行情聚合 API。资产和借款仍然保存在 App 本地，这个 API 只负责汇率、股票、ETF、黄金白银、虚拟币估值。</p><span class="tag">Cloudflare Pages Functions</span><span class="tag">v${VERSION}</span><span class="tag">Twelve Data</span><span class="tag">CoinGecko</span><span class="tag">Frankfurter</span><span class="tag">Gold API</span></section><section class="card"><h2>在线测试</h2><p>如果设置了 APP_API_TOKEN，输入 Token 后测试。</p><div class="grid"><div><label>API Token</label><input id="token" placeholder="填写你的 APP_API_TOKEN"/></div><div><label>测试接口</label><input id="path" value="/api/health"/></div></div><p><button onclick="testApi()">测试接口</button></p><pre id="result" class="result">等待测试...</pre></section><section class="card"><h2>接口列表</h2><table><tr><th>功能</th><th>方法</th><th>路径</th></tr><tr><td>健康检查</td><td>GET</td><td><code>/api/health</code></td></tr><tr><td>环境检查</td><td>GET</td><td><code>/api/debug/env</code></td></tr><tr><td>自检</td><td>GET</td><td><code>/api/debug/self-test</code></td></tr><tr><td>汇率</td><td>GET</td><td><code>/api/fx?base=USD&amp;quote=CNY&amp;amount=700</code></td></tr><tr><td>虚拟币</td><td>GET</td><td><code>/api/crypto?ids=solana,bitcoin,tether&amp;quote=CNY</code></td></tr><tr><td>黄金白银</td><td>GET</td><td><code>/api/metal?symbol=XAU&amp;unit=gram&amp;quote=CNY</code></td></tr><tr><td>股票 / ETF</td><td>GET</td><td><code>/api/stock?symbol=AAPL&amp;quote=CNY</code></td></tr><tr><td>A股 / A股ETF</td><td>GET</td><td><code>/api/cn-stock?symbol=600519&amp;quote=CNY</code></td></tr><tr><td>搜索提示</td><td>GET</td><td><code>/api/search?type=stock&amp;q=apple</code></td></tr><tr><td>资产组合估值</td><td>POST</td><td><code>/api/portfolio/valuate</code></td></tr></table></section><section class="card"><h2>Flutter 主要调用</h2><pre>POST ${origin}/api/portfolio/valuate
 Header: content-type: application/json, x-api-token: 你的 APP_API_TOKEN
 Body: { "defaultCurrency":"CNY", "assets":[...], "liabilities":[...] }</pre></section></main><script>async function testApi(){const token=document.getElementById('token').value.trim();const path=document.getElementById('path').value.trim()||'/api/health';const result=document.getElementById('result');result.textContent='请求中...';try{const res=await fetch(path.startsWith('/')?path:'/'+path,{headers:token?{'x-api-token':token}:{}});const text=await res.text();try{result.textContent=JSON.stringify(JSON.parse(text),null,2)}catch(_){result.textContent=text}result.className=res.ok?'result ok':'result danger'}catch(e){result.textContent=String(e);result.className='result danger'}}</script></body></html>`;
 }

@@ -29,6 +29,7 @@ Cloudflare Pages 控制台里的 **Direct Upload / 拖 zip 上传** 目前只能
 - Frankfurter：汇率
 - CoinGecko：虚拟币
 - Gold API：黄金 / 白银 / 铂金 / 钯金
+- 东方财富 / 腾讯行情：A股、A股场内 ETF 行情兜底（非官方公开接口，仅适合个人低频使用）
 
 ## 本地运行
 
@@ -203,3 +204,57 @@ API Token：你的 APP_API_TOKEN
 - Adds a descriptive User-Agent for CoinGecko requests.
 - Optional Cloudflare Pages secret: `COINGECKO_DEMO_API_KEY` if you later need more stable CoinGecko access.
 - `/api/debug/env` now reports whether the optional CoinGecko key exists without exposing it.
+
+## A股 / A股 ETF 接口
+
+这一版新增了 A 股行情聚合，不影响原来的美股、ETF、虚拟币、贵金属和汇率接口。
+
+### 查询 A 股价格
+
+```text
+/api/cn-stock?symbol=600519&quote=CNY
+/api/cn-stock?symbol=SH600519&quote=CNY
+/api/cn-stock?symbol=000001.SZ&quote=CNY
+```
+
+支持常见输入格式：
+
+```text
+600519
+SH600519
+sh600519
+600519.SH
+000001.SZ
+SZ000001
+```
+
+自动识别规则：
+
+```text
+6 / 5 / 9 开头：默认上交所 SH
+0 / 1 / 2 / 3 开头：默认深交所 SZ
+```
+
+### 搜索 A 股 / ETF
+
+```text
+/api/search?type=cn_stock&q=茅台
+/api/search?type=cn_stock&q=600519
+/api/search?type=cn_etf&q=沪深300
+/api/search?type=cn_etf&q=510300
+```
+
+### 资产组合估值里使用
+
+```json
+{
+  "type": "cn_stock",
+  "name": "贵州茅台",
+  "symbol": "600519",
+  "quantity": 1
+}
+```
+
+A 股报价源货币固定为 CNY，如果 `defaultCurrency` 是 USD / HKD 等，会继续走汇率接口换算。
+
+> 注意：A 股接口使用东方财富 / 腾讯的公开行情接口，没有官方 SLA，不建议高频商业使用。个人记账每 15 分钟刷新一次比较合适。
