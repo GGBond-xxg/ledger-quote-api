@@ -5,3 +5,6 @@ TWELVE_DATA_API_KEY="你的_TWELVE_DATA_API_KEY"
 # 推荐设置。设置后，所有 /api/* 请求都要带 Header: x-api-token
 # 浏览器测试也可以临时用 ?token=你的密码
 APP_API_TOKEN="你的_APP_API_TOKEN"
+
+# Optional; only needed if CoinGecko public endpoint rate-limits or blocks your requests.
+COINGECKO_DEMO_API_KEY=

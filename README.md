@@ -166,7 +166,7 @@ API Token：你的 APP_API_TOKEN
 不要在 Flutter 里写 Twelve Data Key，Twelve Data Key 只放在 Cloudflare Pages 的 Secret 里。
 
 
-## v1.5.0 稳定性增强说明
+## v1.6.0 稳定性增强说明
 
 本版在 v1.3 股票接口修复基础上继续加固：
 
@@ -190,9 +190,16 @@ API Token：你的 APP_API_TOKEN
 ```
 
 
-## v1.5 crypto fix
+## v1.6 crypto fix
 
 - 修复 `/api/crypto` 在 CoinGecko 返回 HTML、403/429、超时或异常时可能触发 Cloudflare 1101 的问题。
 - `/api/crypto` 现在会尽量返回 JSON，不再直接让 Worker 崩溃。
 - USDT/USDC 增加稳定币兜底：USD/USDT/USDC 按 1 处理；其它货币优先走 USD 汇率兜底。
 - 新增 `/api/debug/crypto`，等价于 crypto 调试入口。
+
+
+## v1.6 Crypto fix
+
+- Adds a descriptive User-Agent for CoinGecko requests.
+- Optional Cloudflare Pages secret: `COINGECKO_DEMO_API_KEY` if you later need more stable CoinGecko access.
+- `/api/debug/env` now reports whether the optional CoinGecko key exists without exposing it.

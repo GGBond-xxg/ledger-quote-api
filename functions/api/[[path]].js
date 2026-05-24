@@ -1,4 +1,4 @@
-const VERSION = "1.5.0-pages-crypto-fix";
+const VERSION = "1.6.0-pages-coingecko-ua-fix";
 const DEFAULT_CACHE_TTL_SECONDS = 15 * 60;
 const STALE_CACHE_SECONDS = 7 * 24 * 60 * 60;
 const TROY_OUNCE_GRAMS = 31.1034768;
@@ -97,6 +97,7 @@ export async function onRequest(context) {
         version: VERSION,
         hasAppApiToken: Boolean((env.APP_API_TOKEN || "").trim()),
         hasTwelveDataApiKey: Boolean((env.TWELVE_DATA_API_KEY || "").trim()),
+        hasCoinGeckoDemoApiKey: Boolean((env.COINGECKO_DEMO_API_KEY || env.COINGECKO_API_KEY || "").trim()),
         runtime: "cloudflare-pages-functions",
         note: "Only booleans are returned. Secret values are never exposed.",
       });
@@ -165,7 +166,7 @@ async function handleSelfTest(url, env, ctx) {
     return { rate: fx.rate, provider: fx.provider, cached: fx.cached, stale: fx.stale || false };
   });
   await run("crypto_SOL", async () => {
-    const data = await getCryptoPrices(["solana"], quote, ctx);
+    const data = await getCryptoPrices(["solana"], quote, ctx, env);
     return { price: data.items[0]?.price, provider: "CoinGecko", cached: data.cached, stale: data.stale || false };
   });
   await run("metal_XAU", async () => {
@@ -227,7 +228,7 @@ async function handleCrypto(url, env, ctx) {
   if (!ids.length) return jsonResponse({ ok: false, error: "ids is required, e.g. /api/crypto?ids=solana,bitcoin&quote=CNY", code: "BAD_REQUEST" }, 400);
 
   try {
-    const result = await getCryptoPrices(ids, quote, ctx);
+    const result = await getCryptoPrices(ids, quote, ctx, env);
     return jsonResponse({ ok: true, quote, provider: result.provider || "CoinGecko", items: result.items, cached: result.cached, stale: result.stale || false, updatedAt: result.updatedAt });
   } catch (error) {
     // 兜底：虚拟币上游偶尔会返回 HTML / 403 / 429 / 超时。这里必须返回 JSON，避免 Cloudflare 1101 影响 App。
@@ -302,7 +303,7 @@ async function handleSearch(url, env, ctx) {
   }
 
   if (type === "crypto") {
-    const items = await searchCoinGeckoCoins({ query: q, limit, ctx });
+    const items = await searchCoinGeckoCoins({ query: q, limit, ctx, env });
     return jsonResponse({ ok: true, type, query: q, provider: items.provider || (q ? "CoinGecko Search" : "CoinGecko Markets"), items: items.items || items });
   }
 
@@ -369,7 +370,7 @@ function normalizeTwelveSearchRow(row, requestedType) {
   return { assetType: isEtf ? "etf" : "stock", name, symbol, displayCode: symbol, quoteCurrency: currency || "USD", unit: "", exchange, provider: "Twelve Data", subtitle: [exchange, currency, row?.country].filter(Boolean).join(" · ") };
 }
 
-async function searchCoinGeckoCoins({ query, limit, ctx }) {
+async function searchCoinGeckoCoins({ query, limit, ctx, env = null }) {
   const q = query.trim();
   try {
     if (!q) {
@@ -379,13 +380,13 @@ async function searchCoinGeckoCoins({ query, limit, ctx }) {
       marketUrl.searchParams.set("per_page", String(Math.max(limit, 20)));
       marketUrl.searchParams.set("page", "1");
       marketUrl.searchParams.set("sparkline", "false");
-      const data = await cachedJson("search:cg:top", 60 * 60, () => fetchJson(marketUrl.toString(), { service: "CoinGecko Markets" }), ctx);
+      const data = await cachedJson("search:cg:top", 60 * 60, () => fetchJson(marketUrl.toString(), { service: "CoinGecko Markets", env }), ctx);
       const rows = Array.isArray(data.json) ? data.json : [];
       return rows.slice(0, limit).map((row) => ({ assetType: "crypto", name: row.name || row.id, symbol: row.id, displayCode: upper(row.symbol || row.id), quoteCurrency: "USD", unit: "", provider: "CoinGecko Markets", subtitle: row.market_cap_rank ? `Rank #${row.market_cap_rank}` : "" }));
     }
     const searchUrl = new URL("https://api.coingecko.com/api/v3/search");
     searchUrl.searchParams.set("query", q);
-    const data = await cachedJson(`search:cg:${q.toLowerCase()}`, 60 * 60, () => fetchJson(searchUrl.toString(), { service: "CoinGecko Search" }), ctx);
+    const data = await cachedJson(`search:cg:${q.toLowerCase()}`, 60 * 60, () => fetchJson(searchUrl.toString(), { service: "CoinGecko Search", env }), ctx);
     const rows = Array.isArray(data.json?.coins) ? data.json.coins : [];
     return rows.slice(0, limit).map((row) => ({ assetType: "crypto", name: row.name || row.id, symbol: row.id, displayCode: upper(row.symbol || row.id), quoteCurrency: "USD", unit: "", provider: "CoinGecko Search", subtitle: row.market_cap_rank ? `Rank #${row.market_cap_rank}` : "" }));
   } catch (_) {
@@ -460,7 +461,7 @@ async function valuateAsset(asset, defaultCurrency, env, ctx) {
 
   if (type === "crypto") {
     const cryptoId = normalizeCryptoId(asset?.coinId || asset?.symbol || asset?.code || name);
-    const prices = await getCryptoPrices([cryptoId], defaultCurrency, ctx);
+    const prices = await getCryptoPrices([cryptoId], defaultCurrency, ctx, env);
     const item = prices.items[0];
     if (!item || typeof item.price !== "number") throw new Error(`Crypto price not found: ${cryptoId}`);
     return baseAssetResult(asset, { id, name, type, symbol: cryptoId, quantity, price: item.price, sourceCurrency: defaultCurrency, value: round(quantity * item.price), provider: "CoinGecko", stale: prices.stale || false, updatedAt: item.updatedAt || prices.updatedAt });
@@ -560,7 +561,7 @@ async function getMetalPrice(symbol, unit, targetCurrency, ctx) {
   return { unit: normalizedUnit, price: round(sourceUnitPriceUsd * fx.rate), sourcePricePerTroyOunceUsd: Number.isFinite(pricePerTroyOunceUsd) ? round(pricePerTroyOunceUsd) : undefined, provider: "Gold API + " + fx.provider, cached: data.cached || fx.cached, stale: Boolean(data.stale || fx.stale), updatedAt: raw.updatedAt || raw.updated_at || raw.timestamp || data.updatedAt };
 }
 
-async function getCryptoPrices(ids, targetCurrency, ctx) {
+async function getCryptoPrices(ids, targetCurrency, ctx, env = null) {
   const uniqueIds = [...new Set(ids.map(normalizeCryptoId).filter(Boolean))];
   if (!uniqueIds.length) throw new Error("No crypto ids supplied");
   const vs = normalizeCoinGeckoVsCurrency(targetCurrency);
@@ -569,7 +570,7 @@ async function getCryptoPrices(ids, targetCurrency, ctx) {
   cgUrl.searchParams.set("vs_currencies", vs);
   cgUrl.searchParams.set("include_last_updated_at", "true");
 
-  const data = await cachedJson(`crypto:${uniqueIds.join(",")}:${vs}`, DEFAULT_CACHE_TTL_SECONDS, () => fetchJson(cgUrl.toString(), { service: "CoinGecko Price", timeoutMs: 8000 }), ctx);
+  const data = await cachedJson(`crypto:${uniqueIds.join(",")}:${vs}`, DEFAULT_CACHE_TTL_SECONDS, () => fetchJson(cgUrl.toString(), { service: "CoinGecko Price", timeoutMs: 8000, env }), ctx);
   if (!data.json || typeof data.json !== "object" || Array.isArray(data.json)) {
     throw new Error("CoinGecko returned invalid price payload");
   }
@@ -675,11 +676,12 @@ async function cachedJson(cacheKey, ttlSeconds, fetcher, ctx) {
   }
 }
 
-async function fetchJson(url, { service = "upstream", timeoutMs = FETCH_TIMEOUT_MS } = {}) {
+async function fetchJson(url, { service = "upstream", timeoutMs = FETCH_TIMEOUT_MS, env = null } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort("timeout"), timeoutMs);
   try {
-    const res = await fetch(url, { headers: { accept: "application/json" }, signal: controller.signal });
+    const headers = buildUpstreamHeaders(service, env);
+    const res = await fetch(url, { headers, signal: controller.signal });
     const text = await res.text();
     let json;
     try { json = text ? JSON.parse(text) : null; } catch (_) { throw new Error(`${service} returned non-JSON response: HTTP ${res.status}`); }
@@ -700,6 +702,25 @@ async function fetchJson(url, { service = "upstream", timeoutMs = FETCH_TIMEOUT_
   } finally {
     clearTimeout(timer);
   }
+}
+
+function buildUpstreamHeaders(service, env) {
+  const headers = {
+    accept: "application/json",
+  };
+
+  // CoinGecko currently rejects anonymous/default clients more often.
+  // Add a descriptive User-Agent as requested by their 403 response.
+  if (String(service || "").toLowerCase().includes("coingecko")) {
+    headers["user-agent"] = "AI-Ledger-Flutter/1.0 (+https://github.com/GGBond-xxg/AI_Ledger_Flutter; personal asset tracker)";
+
+    // Optional: if you later create a CoinGecko demo API key in Cloudflare Pages variables,
+    // set COINGECKO_DEMO_API_KEY and the API will automatically use it.
+    const demoKey = (env?.COINGECKO_DEMO_API_KEY || env?.COINGECKO_API_KEY || "").trim();
+    if (demoKey) headers["x-cg-demo-api-key"] = demoKey;
+  }
+
+  return headers;
 }
 
 function isProviderError(json) {
