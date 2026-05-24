@@ -1,4 +1,4 @@
-const VERSION = "1.6.0-pages-coingecko-ua-fix";
+const VERSION = "1.7.0-pages-crypto-cache-fallback";
 const DEFAULT_CACHE_TTL_SECONDS = 15 * 60;
 const STALE_CACHE_SECONDS = 7 * 24 * 60 * 60;
 const TROY_OUNCE_GRAMS = 31.1034768;
@@ -564,26 +564,109 @@ async function getMetalPrice(symbol, unit, targetCurrency, ctx) {
 async function getCryptoPrices(ids, targetCurrency, ctx, env = null) {
   const uniqueIds = [...new Set(ids.map(normalizeCryptoId).filter(Boolean))];
   if (!uniqueIds.length) throw new Error("No crypto ids supplied");
-  const vs = normalizeCoinGeckoVsCurrency(targetCurrency);
-  const cgUrl = new URL("https://api.coingecko.com/api/v3/simple/price");
-  cgUrl.searchParams.set("ids", uniqueIds.join(","));
-  cgUrl.searchParams.set("vs_currencies", vs);
-  cgUrl.searchParams.set("include_last_updated_at", "true");
 
-  const data = await cachedJson(`crypto:${uniqueIds.join(",")}:${vs}`, DEFAULT_CACHE_TTL_SECONDS, () => fetchJson(cgUrl.toString(), { service: "CoinGecko Price", timeoutMs: 8000, env }), ctx);
-  if (!data.json || typeof data.json !== "object" || Array.isArray(data.json)) {
-    throw new Error("CoinGecko returned invalid price payload");
+  // v1.7: 不再按 CNY/USD/HKD 分别请求 CoinGecko。
+  // 统一缓存 USD 价格，再用汇率换成目标货币，避免换一个估值货币就重新打 CoinGecko 导致 429。
+  const items = [];
+  let cached = true;
+  let stale = false;
+  let providerParts = new Set();
+  let updatedAt = new Date().toISOString();
+
+  for (const id of uniqueIds) {
+    const result = await getCryptoUsdPriceWithFallback(id, ctx, env);
+    let price = NaN;
+    if (Number.isFinite(result.priceUsd)) {
+      const converted = await convertUsdPriceToTarget(result.priceUsd, targetCurrency, ctx);
+      price = converted.price;
+      cached = cached && Boolean(result.cached && converted.cached);
+      stale = Boolean(stale || result.stale || converted.stale);
+      providerParts.add(`${result.provider} + ${converted.provider}`);
+      updatedAt = result.updatedAt || converted.updatedAt || updatedAt;
+    }
+    items.push({
+      id,
+      quote: upper(targetCurrency),
+      price: round(price),
+      updatedAt: result.updatedAt || updatedAt,
+      warning: Number.isFinite(price) ? undefined : result.warning,
+    });
   }
 
-  const items = uniqueIds.map((id) => {
-    const row = data.json?.[id] || {};
-    let priceInVs = firstNumber(row[vs]);
-    // USDT/USDC 等稳定币兜底，避免 CoinGecko 抽风时导致稳定币金额直接归零。
-    if (!Number.isFinite(priceInVs)) priceInVs = stableCoinFallbackPrice(id, targetCurrency);
-    const lastUpdated = row.last_updated_at ? new Date(row.last_updated_at * 1000).toISOString() : data.updatedAt;
-    return { id, quote: targetCurrency, price: round(priceInVs), updatedAt: lastUpdated };
-  });
-  return { items, cached: data.cached, stale: data.stale || false, updatedAt: data.updatedAt, provider: data.stale ? "CoinGecko stale cache" : "CoinGecko" };
+  const hasAnyPrice = items.some((item) => typeof item.price === "number" && Number.isFinite(item.price));
+  if (!hasAnyPrice) throw new Error("Crypto price not found for all requested ids");
+  return {
+    items,
+    cached,
+    stale,
+    updatedAt,
+    provider: providerParts.size ? [...providerParts].slice(0, 3).join("; ") : "crypto fallback",
+  };
+}
+
+async function getCryptoUsdPriceWithFallback(id, ctx, env = null) {
+  const normalizedId = normalizeCryptoId(id);
+  const updatedAt = new Date().toISOString();
+
+  // 稳定币不用打 CoinGecko，直接按 USD 1 处理。
+  if (isStableCoinId(normalizedId)) {
+    return { priceUsd: 1, cached: true, stale: false, provider: "stablecoin fallback", updatedAt };
+  }
+
+  // 1) CoinGecko USD 单币种缓存。单币种缓存能被 portfolio/valuate 复用，避免批量缓存和单币种缓存互不命中。
+  try {
+    const cgUrl = new URL("https://api.coingecko.com/api/v3/simple/price");
+    cgUrl.searchParams.set("ids", normalizedId);
+    cgUrl.searchParams.set("vs_currencies", "usd");
+    cgUrl.searchParams.set("include_last_updated_at", "true");
+    const data = await cachedJson(`crypto-usd:${normalizedId}`, DEFAULT_CACHE_TTL_SECONDS, () => fetchJson(cgUrl.toString(), { service: "CoinGecko Price", timeoutMs: 8000, env }), ctx);
+    const row = data.json?.[normalizedId] || {};
+    const priceUsd = firstNumber(row.usd);
+    if (Number.isFinite(priceUsd)) {
+      return {
+        priceUsd,
+        cached: data.cached,
+        stale: data.stale || false,
+        provider: data.stale ? "CoinGecko stale cache" : "CoinGecko",
+        updatedAt: row.last_updated_at ? new Date(row.last_updated_at * 1000).toISOString() : data.updatedAt,
+      };
+    }
+  } catch (error) {
+    // 继续走交易所兜底，不能因为 CoinGecko 429 导致 App 金额归零。
+  }
+
+  // 2) Binance USDT 价格兜底。适合 BTC/SOL/ETH/BNB/DOGE/ADA/LINK/LTC 等常见币。
+  try {
+    const symbol = BINANCE_USDT_SYMBOLS[normalizedId];
+    if (symbol) {
+      const url = `https://api.binance.com/api/v3/ticker/price?symbol=${encodeURIComponent(symbol)}`;
+      const data = await cachedJson(`crypto-binance-usdt:${normalizedId}`, DEFAULT_CACHE_TTL_SECONDS, () => fetchJson(url, { service: "Binance Ticker", timeoutMs: 7000 }), ctx);
+      const priceUsd = firstNumber(data.json?.price);
+      if (Number.isFinite(priceUsd)) return { priceUsd, cached: data.cached, stale: data.stale || false, provider: data.stale ? "Binance stale cache" : "Binance", updatedAt: data.updatedAt };
+    }
+  } catch (error) {}
+
+  // 3) Coinbase USD 价格兜底。Binance 在某些网络/地区可能不可用。
+  try {
+    const code = COINBASE_USD_CODES[normalizedId];
+    if (code) {
+      const url = `https://api.coinbase.com/v2/prices/${encodeURIComponent(code)}-USD/spot`;
+      const data = await cachedJson(`crypto-coinbase-usd:${normalizedId}`, DEFAULT_CACHE_TTL_SECONDS, () => fetchJson(url, { service: "Coinbase Spot", timeoutMs: 7000 }), ctx);
+      const priceUsd = firstNumber(data.json?.data?.amount);
+      if (Number.isFinite(priceUsd)) return { priceUsd, cached: data.cached, stale: data.stale || false, provider: data.stale ? "Coinbase stale cache" : "Coinbase", updatedAt: data.updatedAt };
+    }
+  } catch (error) {}
+
+  return { priceUsd: NaN, cached: false, stale: true, provider: "crypto fallback", updatedAt, warning: `Crypto price not found: ${normalizedId}` };
+}
+
+async function convertUsdPriceToTarget(priceUsd, targetCurrency, ctx) {
+  const quote = upper(targetCurrency);
+  if (quote === "USD" || quote === "USDT" || quote === "USDC") {
+    return { price: round(priceUsd), cached: true, stale: false, provider: quote === "USD" ? "USD" : `${quote}≈USD`, updatedAt: new Date().toISOString() };
+  }
+  const fx = await getFxRate("USD", quote, ctx);
+  return { price: round(priceUsd * fx.rate), cached: fx.cached, stale: fx.stale || false, provider: fx.provider, updatedAt: fx.updatedAt };
 }
 
 async function buildCryptoFallbackItems(ids, targetCurrency, ctx, cause) {
@@ -592,19 +675,61 @@ async function buildCryptoFallbackItems(ids, targetCurrency, ctx, cause) {
   const items = [];
 
   for (const id of uniqueIds) {
-    let price = stableCoinFallbackPrice(id, targetCurrency);
-    // 如果是 USDT/USDC → 非 USD/CNY 等，尽量用 Frankfurter 的 USD 汇率兜底。
-    if (!Number.isFinite(price) && isStableCoinId(id)) {
-      try {
-        const fx = await getFxRate("USD", targetCurrency, ctx);
-        price = fx.rate;
-      } catch (_) {}
-    }
-    items.push({ id, quote: targetCurrency, price: round(price), updatedAt, warning: Number.isFinite(price) ? "stablecoin fallback" : cleanErrorMessage(cause) });
+    let price = NaN;
+    let warning = cleanErrorMessage(cause);
+    try {
+      const result = await getCryptoUsdPriceWithFallback(id, ctx, null);
+      if (Number.isFinite(result.priceUsd)) {
+        const converted = await convertUsdPriceToTarget(result.priceUsd, targetCurrency, ctx);
+        price = converted.price;
+        warning = `${result.provider} fallback`;
+      }
+    } catch (_) {}
+    items.push({ id, quote: upper(targetCurrency), price: round(price), updatedAt, warning });
   }
 
   return { items, cached: false, provider: "crypto fallback", updatedAt };
 }
+
+const BINANCE_USDT_SYMBOLS = {
+  bitcoin: "BTCUSDT",
+  ethereum: "ETHUSDT",
+  solana: "SOLUSDT",
+  tether: "USDTUSDT",
+  "usd-coin": "USDCUSDT",
+  binancecoin: "BNBUSDT",
+  cardano: "ADAUSDT",
+  dogecoin: "DOGEUSDT",
+  chainlink: "LINKUSDT",
+  litecoin: "LTCUSDT",
+  avalanche: "AVAXUSDT",
+  ripple: "XRPUSDT",
+  tron: "TRXUSDT",
+  polkadot: "DOTUSDT",
+  polygon: "MATICUSDT",
+  "near-protocol": "NEARUSDT",
+  aptos: "APTUSDT",
+  arbitrum: "ARBUSDT",
+  optimism: "OPUSDT",
+  stellar: "XLMUSDT",
+  uniswap: "UNIUSDT",
+  cosmos: "ATOMUSDT",
+};
+
+const COINBASE_USD_CODES = {
+  bitcoin: "BTC",
+  ethereum: "ETH",
+  solana: "SOL",
+  cardano: "ADA",
+  dogecoin: "DOGE",
+  chainlink: "LINK",
+  litecoin: "LTC",
+  avalanche: "AVAX",
+  ripple: "XRP",
+  polkadot: "DOT",
+  "usd-coin": "USDC",
+  tether: "USDT",
+};
 
 function isStableCoinId(id) {
   return ["tether", "usd-coin", "usdt", "usdc"].includes(String(id || "").toLowerCase());
