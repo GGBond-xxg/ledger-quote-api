@@ -1,4 +1,4 @@
-const VERSION = "1.8.0-pages-cn-a-share";
+const VERSION = "1.8.1-pages-stability";
 const DEFAULT_CACHE_TTL_SECONDS = 15 * 60;
 const STALE_CACHE_SECONDS = 7 * 24 * 60 * 60;
 const TROY_OUNCE_GRAMS = 31.1034768;
@@ -749,29 +749,48 @@ async function getStockPrice(symbol, targetCurrency, env, ctx) {
   quoteUrl.searchParams.set("symbol", symbol);
   quoteUrl.searchParams.set("apikey", apiKey);
 
-  const priceData = await cachedJson(`stock-price:${symbol}`, DEFAULT_CACHE_TTL_SECONDS, () => fetchJson(priceUrl.toString(), { service: "Twelve Data Price" }), ctx);
-  if (isProviderError(priceData.json)) throw new Error(priceData.json?.message || `Twelve Data price error for ${symbol}`);
+  let priceJson = null;
+  let priceCached = false;
+  let priceStale = false;
+  let priceUpdatedAt = null;
+  let priceError = null;
+  try {
+    const priceData = await cachedJson(`stock-price:${symbol}`, DEFAULT_CACHE_TTL_SECONDS, () => fetchJson(priceUrl.toString(), { service: "Twelve Data Price", retries: 1 }), ctx);
+    if (isProviderError(priceData.json)) {
+      throw new Error(priceData.json?.message || `Twelve Data price error for ${symbol}`);
+    }
+    priceJson = priceData.json;
+    priceCached = priceData.cached;
+    priceStale = priceData.stale || false;
+    priceUpdatedAt = priceData.updatedAt;
+  } catch (error) {
+    // 不要因为 /price 一次失败就直接判定股票/ETF失败；/quote 经常仍然能返回 close/previous_close。
+    priceError = error;
+  }
 
   let quoteJson = null;
   let quoteCached = false;
   let quoteStale = false;
+  let quoteUpdatedAt = null;
   try {
-    const quoteData = await cachedJson(`stock-quote:${symbol}`, DEFAULT_CACHE_TTL_SECONDS, () => fetchJson(quoteUrl.toString(), { service: "Twelve Data Quote" }), ctx);
+    const quoteData = await cachedJson(`stock-quote:${symbol}`, DEFAULT_CACHE_TTL_SECONDS, () => fetchJson(quoteUrl.toString(), { service: "Twelve Data Quote", retries: 1 }), ctx);
     if (!isProviderError(quoteData.json)) {
       quoteJson = quoteData.json;
       quoteCached = quoteData.cached;
       quoteStale = quoteData.stale || false;
+      quoteUpdatedAt = quoteData.updatedAt;
     }
   } catch (_) {
     quoteJson = null;
   }
 
-  const sourcePrice = firstNumber(priceData.json?.price, quoteJson?.close, quoteJson?.price, quoteJson?.previous_close);
-  if (!Number.isFinite(sourcePrice)) throw new Error(`Stock price not found: ${symbol}`);
+  const sourcePrice = firstNumber(priceJson?.price, quoteJson?.close, quoteJson?.price, quoteJson?.previous_close);
+  if (!Number.isFinite(sourcePrice)) throw new Error(priceError ? cleanErrorMessage(priceError) : `Stock price not found: ${symbol}`);
 
   const sourceCurrency = upper(quoteJson?.currency || inferStockCurrency(symbol) || "USD");
   const fx = await getFxRate(sourceCurrency, targetCurrency, ctx);
-  return { price: round(sourcePrice * fx.rate), sourcePrice: round(sourcePrice), sourceCurrency, provider: "Twelve Data/price + " + fx.provider, cached: Boolean(priceData.cached || quoteCached), stale: Boolean(priceData.stale || quoteStale || fx.stale), updatedAt: quoteJson?.datetime || quoteJson?.timestamp || priceData.updatedAt, rawSummary: { name: quoteJson?.name || priceData.json?.symbol || symbol, exchange: quoteJson?.exchange, currency: quoteJson?.currency || sourceCurrency, close: quoteJson?.close, previousClose: quoteJson?.previous_close, percentChange: quoteJson?.percent_change } };
+  const provider = priceJson ? "Twelve Data/price" : "Twelve Data/quote fallback";
+  return { price: round(sourcePrice * fx.rate), sourcePrice: round(sourcePrice), sourceCurrency, provider: provider + " + " + fx.provider, cached: Boolean(priceCached || quoteCached), stale: Boolean(priceStale || quoteStale || fx.stale), updatedAt: quoteJson?.datetime || quoteJson?.timestamp || quoteUpdatedAt || priceUpdatedAt || new Date().toISOString(), rawSummary: { name: quoteJson?.name || priceJson?.symbol || symbol, exchange: quoteJson?.exchange, currency: quoteJson?.currency || sourceCurrency, close: quoteJson?.close, previousClose: quoteJson?.previous_close, percentChange: quoteJson?.percent_change } };
 }
 
 function inferStockCurrency(symbol) {
@@ -1066,32 +1085,49 @@ async function fetchText(url, { service = "upstream", timeoutMs = FETCH_TIMEOUT_
   }
 }
 
-async function fetchJson(url, { service = "upstream", timeoutMs = FETCH_TIMEOUT_MS, env = null } = {}) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort("timeout"), timeoutMs);
-  try {
-    const headers = buildUpstreamHeaders(service, env);
-    const res = await fetch(url, { headers, signal: controller.signal });
-    const text = await res.text();
-    let json;
-    try { json = text ? JSON.parse(text) : null; } catch (_) { throw new Error(`${service} returned non-JSON response: HTTP ${res.status}`); }
-    if (!res.ok) {
-      const message = json?.message || json?.error || json?.error_message || JSON.stringify(json).slice(0, 240);
-      const err = new Error(`${service} HTTP ${res.status}: ${message}`);
-      err.status = res.status >= 500 ? 502 : 400;
-      throw err;
+async function fetchJson(url, { service = "upstream", timeoutMs = FETCH_TIMEOUT_MS, env = null, retries = 1 } = {}) {
+  let lastError = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort("timeout"), timeoutMs);
+    try {
+      const headers = buildUpstreamHeaders(service, env);
+      const res = await fetch(url, { headers, signal: controller.signal });
+      const text = await res.text();
+      let json;
+      try { json = text ? JSON.parse(text) : null; } catch (_) { throw new Error(`${service} returned non-JSON response: HTTP ${res.status}`); }
+      if (!res.ok) {
+        const message = json?.message || json?.error || json?.error_message || JSON.stringify(json).slice(0, 240);
+        const err = new Error(`${service} HTTP ${res.status}: ${message}`);
+        err.status = res.status >= 500 ? 502 : (res.status === 429 || res.status === 408 ? 504 : 400);
+        throw err;
+      }
+      return json;
+    } catch (error) {
+      if (error?.name === "AbortError" || String(error?.message || error).includes("abort")) {
+        const err = new Error(`${service} request timed out after ${Math.round(timeoutMs / 1000)}s`);
+        err.status = 504;
+        lastError = err;
+      } else {
+        lastError = error;
+      }
+
+      const status = Number(lastError?.status || 0);
+      const retryable = status === 502 || status === 503 || status === 504 || String(lastError?.message || "").toLowerCase().includes("network");
+      if (attempt < retries && retryable) {
+        await sleep(350 + attempt * 450);
+        continue;
+      }
+      throw lastError;
+    } finally {
+      clearTimeout(timer);
     }
-    return json;
-  } catch (error) {
-    if (error?.name === "AbortError" || String(error?.message || error).includes("abort")) {
-      const err = new Error(`${service} request timed out after ${Math.round(timeoutMs / 1000)}s`);
-      err.status = 504;
-      throw err;
-    }
-    throw error;
-  } finally {
-    clearTimeout(timer);
   }
+  throw lastError || new Error(`${service} request failed`);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function buildUpstreamHeaders(service, env) {
