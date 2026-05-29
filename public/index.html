@@ -5,60 +5,120 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Ledger Quote API</title>
   <style>
-    :root{--bg:#f6f7fb;--card:#fff;--text:#101828;--muted:#667085;--line:#e6e9f2;--primary:#5367a7;--soft:#eef2ff;--danger:#c2410c;}
-    *{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#f8faff 0%,var(--bg) 45%,#fff 100%);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",Arial,sans-serif;color:var(--text);line-height:1.65}
-    main{max-width:1080px;margin:0 auto;padding:34px 18px 80px}.hero{padding:28px;border-radius:28px;background:radial-gradient(circle at 0 0,#eaf0ff,#fff 50%);border:1px solid var(--line);box-shadow:0 20px 60px rgba(28,45,89,.08)}
-    h1{margin:0 0 8px;font-size:34px;letter-spacing:-.8px} h2{margin:34px 0 12px;font-size:22px} h3{margin:18px 0 8px}.muted,p,li{color:var(--muted)}
-    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}.card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:18px;box-shadow:0 16px 45px rgba(28,45,89,.06);margin:14px 0}.tag{display:inline-block;background:var(--soft);color:var(--primary);font-weight:700;border-radius:999px;padding:5px 11px;margin:4px 4px 0 0;font-size:13px}
-    code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}pre{white-space:pre-wrap;word-break:break-word;background:#0f172a;color:#e5edff;border-radius:16px;padding:14px;overflow:auto} table{width:100%;border-collapse:collapse;border-radius:16px;overflow:hidden} th,td{border:1px solid var(--line);padding:10px;text-align:left;vertical-align:top} th{background:#f1f4fb} .row{display:flex;gap:10px;flex-wrap:wrap} input,select,button,textarea{font:inherit} input,textarea{width:100%;border:1px solid var(--line);border-radius:14px;padding:12px;background:#fff} button{border:0;border-radius:14px;padding:12px 16px;background:var(--primary);color:#fff;font-weight:800;cursor:pointer}.danger{color:var(--danger)}.ok{color:#16794c}.result{min-height:96px}
+    :root{
+      --bg:#f6f7fb;--card:#ffffff;--card2:#f9fafc;--text:#111827;--muted:#667085;--muted2:#98a2b3;
+      --line:#e6e9f2;--primary:#5367a7;--primary2:#334a87;--soft:#eef2ff;--soft2:#e8edf9;
+      --ok:#168255;--danger:#c2414b;--warn:#b7791f;--code:#101828;--codeText:#e5edff;
+      --shadow:0 18px 55px rgba(31,45,78,.08);
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;background:radial-gradient(circle at 20% 0,#edf3ff 0,#f7f8fc 34%,#fff 100%);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",Arial,sans-serif;color:var(--text);line-height:1.68}
+    main{max-width:1180px;margin:0 auto;padding:32px 18px 88px}
+    .hero{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,.8fr);gap:18px;align-items:stretch}
+    .heroMain,.heroSide,.card{background:rgba(255,255,255,.86);backdrop-filter:blur(14px);border:1px solid var(--line);box-shadow:var(--shadow)}
+    .heroMain{border-radius:30px;padding:30px;background:linear-gradient(135deg,#ffffff 0%,#eef3ff 100%)}
+    .heroSide{border-radius:30px;padding:22px;background:#fff}
+    h1{margin:0 0 10px;font-size:38px;line-height:1.15;letter-spacing:-1px}
+    h2{margin:34px 0 14px;font-size:24px;letter-spacing:-.2px}
+    h3{margin:18px 0 8px;font-size:18px}.muted,p,li{color:var(--muted)}
+    a{color:var(--primary2);text-decoration:none;font-weight:700}.nav{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+    .tag,.pill{display:inline-flex;align-items:center;gap:6px;background:var(--soft);color:var(--primary2);font-weight:800;border-radius:999px;padding:6px 12px;margin:4px 4px 0 0;font-size:13px}.pill{background:#fff;border:1px solid var(--line);color:var(--text)}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}.card{border-radius:24px;padding:20px;margin:16px 0}.mini{padding:16px}.two{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+    code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}code{background:var(--soft2);border-radius:8px;padding:2px 6px;color:#273b73}pre{white-space:pre-wrap;word-break:break-word;background:var(--code);color:var(--codeText);border-radius:18px;padding:16px;overflow:auto;font-size:13px;line-height:1.55}
+    table{width:100%;border-collapse:separate;border-spacing:0;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:#fff}th,td{border-bottom:1px solid var(--line);padding:12px;text-align:left;vertical-align:top}tr:last-child td{border-bottom:0}th{background:#f1f4fb;color:#334155}td:nth-child(2){white-space:nowrap}.method{font-weight:900;color:#0f766e}.post{color:#7c3aed}.warn{color:var(--warn)}.danger{color:var(--danger)}.ok{color:var(--ok)}
+    input,select,button,textarea{font:inherit}label{display:block;color:var(--muted);font-weight:700;margin:0 0 6px}input,select,textarea{width:100%;border:1px solid var(--line);border-radius:15px;padding:12px;background:#fff;color:var(--text)}textarea{min-height:170px;resize:vertical}button{border:0;border-radius:15px;padding:12px 16px;background:var(--primary);color:#fff;font-weight:900;cursor:pointer;box-shadow:0 10px 24px rgba(83,103,167,.24)}button.secondary{background:#fff;color:var(--primary2);border:1px solid var(--line);box-shadow:none}.row{display:flex;gap:10px;flex-wrap:wrap}.result{min-height:120px}.small{font-size:13px}.list{margin:10px 0 0;padding-left:18px}.kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;border:1px solid var(--line);border-bottom-width:2px;border-radius:8px;padding:1px 6px;background:#fff;color:var(--text)}
+    @media(max-width:760px){main{padding:18px 12px 72px}.hero{grid-template-columns:1fr}.heroMain,.heroSide,.card{border-radius:22px}h1{font-size:30px}table{font-size:13px}th,td{padding:9px}.hide-sm{display:none}}
   </style>
 </head>
 <body>
 <main>
   <section class="hero">
-    <h1>Ledger Quote API</h1>
-    <p>个人记账 App 使用的行情聚合 API。资产和借款仍然保存在 App 本地，这个 API 只负责汇率、股票、ETF、黄金白银、虚拟币估值。</p>
-    <span class="tag">Cloudflare Pages Functions</span><span class="tag">v1.4.0</span><span class="tag">Twelve Data</span><span class="tag">CoinGecko</span><span class="tag">Frankfurter</span><span class="tag">Gold API</span>
+    <div class="heroMain">
+      <h1>Ledger Quote API</h1>
+      <p>个人记账 App 使用的行情聚合 API。App 本地保存资产、账单和借款；Cloudflare 只负责汇率、股票、ETF、A股、A股 ETF、黄金白银、虚拟币估值。</p>
+      <span class="tag">Cloudflare Pages Functions</span><span class="tag">v1.9.0-pages-docs-ashare</span><span class="tag">美股 / ETF</span><span class="tag">A股 / A股ETF</span><span class="tag">FX</span><span class="tag">Crypto</span><span class="tag">Metal</span>
+      <div class="nav"><a class="pill" href="#test">在线测试</a><a class="pill" href="#endpoints">接口总览</a><a class="pill" href="#ashare">A股说明</a><a class="pill" href="#portfolio">组合估值</a><a class="pill" href="#deploy">部署检查</a></div>
+    </div>
+    <div class="heroSide">
+      <h3>App 设置页填写</h3>
+      <pre>API 地址：你的 Cloudflare Pages 域名
+API Token：你的 APP_API_TOKEN
+默认估值货币：CNY / USD / HKD / SGD / EUR / JPY / USDT</pre>
+      <p class="small">设置了 <code>APP_API_TOKEN</code> 后，App 请求会带 <code>x-api-token</code>。浏览器临时测试也可以在 URL 里加 <code>?token=...</code>。</p>
+    </div>
   </section>
 
-  <section class="card">
+  <section class="card" id="test">
     <h2>在线测试</h2>
-    <p>如果你设置了 <code>APP_API_TOKEN</code>，下面输入 Token 后测试。Token 只保存在当前浏览器页面里，不会上传到别处。</p>
-    <div class="grid">
+    <p>Token 只存在当前浏览器 localStorage，方便你直接在主域名测试 API。</p>
+    <div class="grid two">
       <div><label>API Token</label><input id="token" placeholder="填写你的 APP_API_TOKEN" /></div>
-      <div><label>测试接口</label><input id="path" value="/api/health" /></div>
+      <div><label>快速选择</label><select id="preset" onchange="applyPreset()"></select></div>
+      <div><label>方法</label><select id="method"><option>GET</option><option>POST</option></select></div>
+      <div><label>接口路径</label><input id="path" value="/api/health" /></div>
     </div>
-    <p><button onclick="testApi()">测试接口</button></p>
+    <div style="margin-top:12px"><label>POST Body</label><textarea id="body" spellcheck="false"></textarea></div>
+    <p class="row"><button onclick="testApi()">测试接口</button><button class="secondary" onclick="copyCurl()">复制 curl 示例</button></p>
     <pre id="result" class="result">等待测试...</pre>
   </section>
 
-  <section class="card">
-    <h2>接口列表</h2>
+  <section class="card" id="endpoints">
+    <h2>接口总览</h2>
     <table>
-      <tr><th>功能</th><th>方法</th><th>路径</th></tr>
-      <tr><td>健康检查</td><td>GET</td><td><code>/api/health</code></td></tr>
-      <tr><td>配置</td><td>GET</td><td><code>/api/config</code></td></tr>
-      <tr><td>环境检查</td><td>GET</td><td><code>/api/debug/env</code></td></tr>
-      <tr><td>全链路自检</td><td>GET</td><td><code>/api/debug/self-test</code></td></tr>
-      <tr><td>汇率</td><td>GET</td><td><code>/api/fx?base=USD&amp;quote=CNY&amp;amount=700</code></td></tr>
-      <tr><td>虚拟币</td><td>GET</td><td><code>/api/crypto?ids=solana,bitcoin,tether&amp;quote=CNY</code></td></tr>
-      <tr><td>黄金白银</td><td>GET</td><td><code>/api/metal?symbol=XAU&amp;unit=gram&amp;quote=CNY</code></td></tr>
-      <tr><td>股票 / ETF</td><td>GET</td><td><code>/api/stock?symbol=AAPL&amp;quote=CNY</code></td></tr>
-      <tr><td>搜索提示</td><td>GET</td><td><code>/api/search?type=stock&amp;q=apple</code></td></tr>
-      <tr><td>资产组合估值</td><td>POST</td><td><code>/api/portfolio/valuate</code></td></tr>
+      <tr><th>分类</th><th>方法</th><th>路径 / 示例</th><th class="hide-sm">说明</th></tr>
+      <tr><td>健康检查</td><td class="method">GET</td><td><code>/api/health</code></td><td class="hide-sm">确认接口是否在线。</td></tr>
+      <tr><td>配置</td><td class="method">GET</td><td><code>/api/config</code></td><td class="hide-sm">返回支持的资产类型、搜索类型、接口示例。</td></tr>
+      <tr><td>环境检查</td><td class="method">GET</td><td><code>/api/debug/env</code></td><td class="hide-sm">只返回 Key 是否存在，不泄露密钥。</td></tr>
+      <tr><td>全链路自检</td><td class="method">GET</td><td><code>/api/debug/self-test?quote=CNY</code></td><td class="hide-sm">测试 FX、虚拟币、贵金属、美股、A股、A股ETF。</td></tr>
+      <tr><td>虚拟币调试</td><td class="method">GET</td><td><code>/api/debug/crypto?ids=bitcoin,solana&amp;quote=CNY</code></td><td class="hide-sm">等价于 crypto 调试入口。</td></tr>
+      <tr><td>汇率</td><td class="method">GET</td><td><code>/api/fx?base=USD&amp;quote=CNY&amp;amount=700</code></td><td class="hide-sm">返回汇率和换算金额。</td></tr>
+      <tr><td>换算</td><td class="method">GET</td><td><code>/api/convert?from=HKD&amp;to=CNY&amp;amount=1000</code></td><td class="hide-sm">和 /api/fx 类似，参数名更适合换汇。</td></tr>
+      <tr><td>虚拟币</td><td class="method">GET</td><td><code>/api/crypto?ids=solana,bitcoin,tether&amp;quote=CNY</code></td><td class="hide-sm">支持 CoinGecko ID，也支持 BTC/ETH/SOL/USDT/USDC 常见代码。</td></tr>
+      <tr><td>贵金属</td><td class="method">GET</td><td><code>/api/metal?symbol=XAU&amp;unit=gram&amp;quote=CNY</code></td><td class="hide-sm">XAU/XAG/XPT/XPD，单位 gram 或 troy_ounce。</td></tr>
+      <tr><td>美股</td><td class="method">GET</td><td><code>/api/stock?symbol=AAPL&amp;quote=CNY</code></td><td class="hide-sm">Twelve Data。</td></tr>
+      <tr><td>美股 ETF</td><td class="method">GET</td><td><code>/api/stock?symbol=SGOV&amp;quote=CNY</code></td><td class="hide-sm">ETF 同样走 /api/stock。</td></tr>
+      <tr><td>A股</td><td class="method">GET</td><td><code>/api/cn-stock?symbol=600519&amp;quote=CNY</code></td><td class="hide-sm">别名：/api/ashare。/api/stock 也兼容 A 股代码。</td></tr>
+      <tr><td>A股 ETF</td><td class="method">GET</td><td><code>/api/cn-stock?symbol=510050&amp;quote=CNY</code></td><td class="hide-sm">场内基金 / ETF，例如 510050、159915。</td></tr>
+      <tr><td>搜索</td><td class="method">GET</td><td><code>/api/search?type=stock&amp;q=apple</code></td><td class="hide-sm">type 支持 stock/etf/crypto/metal/cn_stock/cn_etf/a_stock/a_etf。</td></tr>
+      <tr><td>组合估值</td><td class="post">POST</td><td><code>/api/portfolio/valuate</code></td><td class="hide-sm">Flutter App 主要调用这个接口。</td></tr>
     </table>
   </section>
 
-  <section class="grid">
-    <div class="card"><h3>股票搜索</h3><pre>/api/search?type=stock&q=apple</pre></div>
-    <div class="card"><h3>ETF 搜索</h3><pre>/api/search?type=etf&q=qqq</pre></div>
-    <div class="card"><h3>虚拟币搜索</h3><pre>/api/search?type=crypto&q=sol</pre></div>
-    <div class="card"><h3>黄金白银</h3><pre>/api/search?type=metal&q=gold</pre></div>
+  <section class="grid" id="search">
+    <div class="card mini"><h3>美股搜索</h3><pre>/api/search?type=stock&q=apple
+/api/search?type=stock&q=AAPL</pre></div>
+    <div class="card mini"><h3>美股 ETF 搜索</h3><pre>/api/search?type=etf&q=sgov
+/api/search?type=etf&q=qqq</pre></div>
+    <div class="card mini"><h3>A股搜索</h3><pre>/api/search?type=cn_stock&q=茅台
+/api/search?type=a_stock&q=601658</pre></div>
+    <div class="card mini"><h3>A股 ETF 搜索</h3><pre>/api/search?type=cn_etf&q=上证50
+/api/search?type=a_etf&q=510050</pre></div>
+    <div class="card mini"><h3>虚拟币搜索</h3><pre>/api/search?type=crypto&q=sol
+/api/search?type=crypto&q=bitcoin</pre></div>
+    <div class="card mini"><h3>贵金属搜索</h3><pre>/api/search?type=metal&q=gold
+/api/search?type=metal&q=XAU</pre></div>
   </section>
 
-  <section class="card">
-    <h2>Flutter 主要调用这个</h2>
-    <pre>POST /api/portfolio/valuate
+  <section class="card" id="ashare">
+    <h2>A股 / A股 ETF 输入格式</h2>
+    <p>下面这些写法都可以，App 里使用 <code>cn_stock</code> 或 <code>cn_etf</code> 类型即可。场内 ETF 也用同一个行情接口。</p>
+    <div class="grid two">
+      <div><h3>A股例子</h3><pre>/api/cn-stock?symbol=600519&quote=CNY
+/api/cn-stock?symbol=SH600519&quote=CNY
+/api/cn-stock?symbol=600519.SH&quote=CNY
+/api/cn-stock?symbol=000001.SZ&quote=CNY</pre></div>
+      <div><h3>A股 ETF / 场内基金例子</h3><pre>/api/cn-stock?symbol=510050&quote=CNY
+/api/cn-stock?symbol=SH510050&quote=CNY
+/api/cn-stock?symbol=159915.SZ&quote=CNY
+/api/ashare?symbol=159740&quote=HKD</pre></div>
+    </div>
+    <p class="small warn">A股行情源使用东方财富 / 腾讯公开行情作为低频兜底，适合个人记账估值，不建议用于高频交易或撮合系统。</p>
+  </section>
+
+  <section class="card" id="portfolio">
+    <h2>Flutter 主要调用：组合估值</h2>
+    <pre>POST https://你的域名/api/portfolio/valuate
 Header:
 content-type: application/json
 x-api-token: 你的 APP_API_TOKEN
@@ -67,10 +127,13 @@ Body:
 {
   "defaultCurrency": "CNY",
   "assets": [
-    {"id":"cash-1","type":"cash","name":"现金","quantity":1000,"currency":"CNY"},
-    {"id":"sol-1","type":"crypto","name":"SOL","symbol":"solana","quantity":1},
+    {"id":"cash-1","type":"cash","name":"招商银行卡","quantity":1000,"currency":"CNY"},
+    {"id":"btc-1","type":"crypto","name":"BTC","symbol":"bitcoin","quantity":0.01},
     {"id":"aapl-1","type":"stock","name":"Apple","symbol":"AAPL","quantity":1},
-    {"id":"gold-1","type":"metal","name":"黄金","symbol":"XAU","quantity":1,"unit":"gram"}
+    {"id":"sgov-1","type":"etf","name":"SGOV","symbol":"SGOV","quantity":21},
+    {"id":"cn-stock-1","type":"cn_stock","name":"邮储银行","symbol":"601658","quantity":1400},
+    {"id":"cn-etf-1","type":"cn_etf","name":"上证50ETF","symbol":"510050","quantity":1000},
+    {"id":"gold-1","type":"metal","name":"黄金","symbol":"XAU","quantity":50,"unit":"gram"}
   ],
   "liabilities": [
     {"id":"loan-1","name":"我欠朋友","direction":"payable","amount":500,"currency":"CNY"},
@@ -78,24 +141,80 @@ Body:
   ]
 }</pre>
   </section>
+
+  <section class="card" id="deploy">
+    <h2>部署检查</h2>
+    <ol class="list">
+      <li>Cloudflare Pages 必须用 Wrangler 或 Git 构建部署；只拖 zip 作为静态资源时，<code>/functions</code> 不会运行。</li>
+      <li>环境变量建议至少设置 <code>APP_API_TOKEN</code> 和 <code>TWELVE_DATA_API_KEY</code>。</li>
+      <li>部署后先测 <code>/api/debug/env</code>，再测 <code>/api/debug/self-test</code>。</li>
+      <li>如果 CoinGecko 偶尔 403/429，可选加 <code>COINGECKO_DEMO_API_KEY</code>。</li>
+    </ol>
+    <pre>curl "/api/debug/env" -H "x-api-token: 你的_APP_API_TOKEN"
+curl "/api/debug/self-test?quote=CNY" -H "x-api-token: 你的_APP_API_TOKEN"</pre>
+  </section>
 </main>
 <script>
-async function testApi(){
-  const token = document.getElementById('token').value.trim();
-  const path = document.getElementById('path').value.trim() || '/api/health';
-  const result = document.getElementById('result');
-  result.textContent = '请求中...';
-  try{
-    const res = await fetch(path.startsWith('/') ? path : '/' + path, {headers: token ? {'x-api-token': token} : {}});
-    const text = await res.text();
-    try { result.textContent = JSON.stringify(JSON.parse(text), null, 2); }
-    catch (_) { result.textContent = text; }
-    result.className = res.ok ? 'result ok' : 'result danger';
-  }catch(e){
-    result.textContent = String(e);
-    result.className = 'result danger';
-  }
+const presets = [
+  ["GET", "/api/health", "", "健康检查"],
+  ["GET", "/api/config", "", "配置"],
+  ["GET", "/api/debug/env", "", "环境检查"],
+  ["GET", "/api/debug/self-test?quote=CNY", "", "全链路自检"],
+  ["GET", "/api/fx?base=USD&quote=CNY&amount=700", "", "汇率 USD→CNY"],
+  ["GET", "/api/convert?from=HKD&to=CNY&amount=1000", "", "换算 HKD→CNY"],
+  ["GET", "/api/crypto?ids=bitcoin,solana,tether&quote=CNY", "", "虚拟币"],
+  ["GET", "/api/metal?symbol=XAU&unit=gram&quote=CNY", "", "黄金 gram"],
+  ["GET", "/api/stock?symbol=AAPL&quote=CNY", "", "美股 AAPL"],
+  ["GET", "/api/stock?symbol=SGOV&quote=CNY", "", "美股 ETF SGOV"],
+  ["GET", "/api/cn-stock?symbol=600519&quote=CNY", "", "A股 600519"],
+  ["GET", "/api/cn-stock?symbol=510050&quote=CNY", "", "A股 ETF 510050"],
+  ["GET", "/api/search?type=cn_etf&q=上证50", "", "搜索 A股ETF"],
+  ["POST", "/api/portfolio/valuate", JSON.stringify({defaultCurrency:"CNY",assets:[{id:"cash-1",type:"cash",name:"现金",quantity:1000,currency:"CNY"},{id:"aapl-1",type:"stock",name:"Apple",symbol:"AAPL",quantity:1},{id:"cn-etf-1",type:"cn_etf",name:"上证50ETF",symbol:"510050",quantity:1000}],liabilities:[]}, null, 2), "组合估值"]
+];
+function init(){
+  const select=document.getElementById('preset');
+  select.innerHTML=presets.map((p,i)=>'<option value="'+i+'">'+p[3]+'</option>').join('');
+  document.getElementById('token').value=localStorage.getItem('ledger_api_token')||'';
+  applyPreset();
 }
+function applyPreset(){
+  const p=presets[Number(document.getElementById('preset').value)||0];
+  document.getElementById('method').value=p[0];
+  document.getElementById('path').value=p[1];
+  document.getElementById('body').value=p[2];
+}
+async function testApi(){
+  const token=document.getElementById('token').value.trim();
+  const method=document.getElementById('method').value;
+  const path=document.getElementById('path').value.trim()||'/api/health';
+  const result=document.getElementById('result');
+  if(token) localStorage.setItem('ledger_api_token', token);
+  result.textContent='请求中...';
+  try{
+    const headers=token?{'x-api-token':token}:{};
+    let body;
+    if(method==='POST'){
+      headers['content-type']='application/json';
+      body=document.getElementById('body').value.trim()||'{}';
+    }
+    const res=await fetch(path.startsWith('/')?path:'/'+path,{method,headers,body});
+    const text=await res.text();
+    try{result.textContent=JSON.stringify(JSON.parse(text),null,2)}catch(_){result.textContent=text}
+    result.className=res.ok?'result ok':'result danger';
+  }catch(e){result.textContent=String(e);result.className='result danger'}
+}
+function copyCurl(){
+  const token=document.getElementById('token').value.trim();
+  const method=document.getElementById('method').value;
+  const path=document.getElementById('path').value.trim()||'/api/health';
+  const url=location.origin+(path.startsWith('/')?path:'/'+path);
+  let cmd='curl '+JSON.stringify(url);
+  if(token) cmd+=' -H '+JSON.stringify('x-api-token: '+token);
+  if(method==='POST') cmd+=' -X POST -H "content-type: application/json" --data '+JSON.stringify(document.getElementById('body').value.trim()||'{}');
+  navigator.clipboard?.writeText(cmd);
+  document.getElementById('result').textContent=cmd;
+}
+init();
 </script>
 </body>
 </html>
