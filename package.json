@@ -1,11 +1,12 @@
 {
   "name": "asset-quote-pages-api",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "wrangler pages dev public --functions functions --compatibility-date=2026-05-19",
-    "deploy": "wrangler pages deploy public --project-name ledger-quote-api"
+    "deploy": "wrangler pages deploy public --project-name ledger-quote-api",
+    "test": "node --test"
   },
   "devDependencies": {
     "wrangler": "latest"
