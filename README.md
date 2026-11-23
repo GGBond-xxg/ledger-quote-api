@@ -2,7 +2,22 @@
 
 这是给个人记账 App 用的行情聚合 API。App 本地保存资产、账单和借款；Cloudflare 只负责查行情、查汇率、换算估值。
 
-当前版本：`1.9.0-pages-docs-ashare`
+当前版本：`1.9.1-efficient-quotes`
+
+## 1.9.1 报价与客户端兼容
+
+- 股票/ETF 每个冷缓存标的只调用一次 Twelve Data `/quote`，同时取得价格、币种、交易所，不再串行请求 `/price` 和 `/quote`。价格使用当前 `close`，不会把 `previous_close` 冒充当前价格。单次上游报价超时 8 秒，不自动重试；汇率超时 6 秒，不自动重试。
+- 原 `/api/stock` 路径及 `price`、`sourcePrice`、`sourceCurrency`、`raw`、`cached`、`stale` 字段保留；交易所在 `raw.exchange`，另提供 `raw.mic_code`。客户端应读取这些字段，不能只查 `identity.exchange`。
+- 保留 15 分钟缓存。相同标的/汇率的并发冷请求在同一 isolate 合并；Cloudflare 缓存和合并不是跨节点全局额度控制，多个设备/区域可能各自回源。
+- 上游 HTTP 429 或 HTTP 200 内的 Twelve Data `code: 429`，在没有可用旧缓存时统一返回 HTTP 429、`code: RATE_LIMITED` 和 `Retry-After: 60`。客户端应停止本轮继续请求；每天额度耗尽时，60 秒后也可能继续限流。
+- 无效或报错的股票/汇率数据不会写入缓存。失败时若有可用旧缓存，继续返回 `ok: true, stale: true`；钱踪拒绝用这种报价覆盖现有估值。异步路由异常统一返回 JSON 错误，不再漏出平台错误页。
+- `/api/stock` 只接受一个代码；批量组合仍使用 `/api/portfolio/valuate`。`/api/health` 不访问行情上游；`/api/debug/self-test` 会主动检查多种数据源，不应拿它做每次启动检查。
+
+四只股票 + 同一 USD/CNY 汇率：冷缓存为 **4 次 Twelve Data + 1 次 Frankfurter**，缓存命中不消耗新的 Twelve Data 报价积分。免费版每分钟 8 积分、每天 800 积分，建议前台 30 分钟刷新；按单设备全天 48 轮估算约 192 股票积分，15 分钟约 384，另留启动、手动刷新、搜索及其他客户端的余量。这是估算，不是全局额度保证。
+
+验证：Node.js 22+ 执行 `npm test`，无需安装依赖，也不调用真实行情服务。测试覆盖四标的请求数、热缓存、并发合并、429、失效缓存、非法报价、超时、FX、认证与兼容字段。
+
+官方依据：[Quote 每标的 1 积分](https://twelvedata.com/docs/market-data/quote)、[免费版额度与重置时间](https://support.twelvedata.com/en/articles/5615854-credits)。
 
 ## 重要部署说明
 

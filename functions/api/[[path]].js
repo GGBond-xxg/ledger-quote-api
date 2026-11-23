@@ -1,10 +1,12 @@
-const VERSION = "1.9.0-pages-docs-ashare";
+const VERSION = "1.9.1-efficient-quotes";
 const DEFAULT_CACHE_TTL_SECONDS = 15 * 60;
 const STALE_CACHE_SECONDS = 7 * 24 * 60 * 60;
 const TROY_OUNCE_GRAMS = 31.1034768;
 const FETCH_TIMEOUT_MS = 10_000;
 const MAX_ASSETS = 120;
 const MAX_LIABILITIES = 120;
+// Coalesce concurrent cache misses within an isolate; this is not a global quota.
+const pendingCacheLoads = new Map();
 
 const SUPPORTED_DEFAULT_CURRENCIES = ["CNY", "USD", "HKD", "SGD", "EUR", "JPY", "USDT"];
 
@@ -164,26 +166,26 @@ export async function onRequest(context) {
     }
 
     if (url.pathname === "/api/debug/self-test") {
-      return handleSelfTest(url, env, ctx);
+      return await handleSelfTest(url, env, ctx);
     }
 
     if (url.pathname === "/api/debug/crypto") {
-      return handleCrypto(url, env, ctx);
+      return await handleCrypto(url, env, ctx);
     }
 
-    if (url.pathname === "/api/fx") return handleFx(url, env, ctx);
-    if (url.pathname === "/api/convert") return handleConvert(url, env, ctx);
-    if (url.pathname === "/api/crypto") return handleCrypto(url, env, ctx);
-    if (url.pathname === "/api/metal") return handleMetal(url, env, ctx);
-    if (url.pathname === "/api/stock") return handleStock(url, env, ctx);
-    if (url.pathname === "/api/cn-stock" || url.pathname === "/api/ashare") return handleChinaStock(url, env, ctx);
-    if (url.pathname === "/api/search") return handleSearch(url, env, ctx);
+    if (url.pathname === "/api/fx") return await handleFx(url, env, ctx);
+    if (url.pathname === "/api/convert") return await handleConvert(url, env, ctx);
+    if (url.pathname === "/api/crypto") return await handleCrypto(url, env, ctx);
+    if (url.pathname === "/api/metal") return await handleMetal(url, env, ctx);
+    if (url.pathname === "/api/stock") return await handleStock(url, env, ctx);
+    if (url.pathname === "/api/cn-stock" || url.pathname === "/api/ashare") return await handleChinaStock(url, env, ctx);
+    if (url.pathname === "/api/search") return await handleSearch(url, env, ctx);
 
     if (url.pathname === "/api/portfolio/valuate") {
       if (request.method !== "POST") {
         return jsonResponse({ ok: false, error: "Use POST with JSON body for /api/portfolio/valuate", code: "METHOD_NOT_ALLOWED" }, 405);
       }
-      return handlePortfolioValuation(request, env, ctx);
+      return await handlePortfolioValuation(request, env, ctx);
     }
 
     return jsonResponse({ ok: false, error: "Unknown API endpoint", code: "UNKNOWN_ENDPOINT" }, 404);
@@ -812,63 +814,36 @@ function parseTencentTime(value) {
 async function getStockPrice(symbol, targetCurrency, env, ctx) {
   const apiKey = (env.TWELVE_DATA_API_KEY || "").trim();
   if (!apiKey) throw new Error("TWELVE_DATA_API_KEY is not configured in Cloudflare environment variables.");
-
-  const priceUrl = new URL("https://api.twelvedata.com/price");
-  priceUrl.searchParams.set("symbol", symbol);
-  priceUrl.searchParams.set("apikey", apiKey);
-
+  // This endpoint accepts one symbol. Batch syntax would otherwise multiply credits
+  // and return a response that cannot be valued as a single asset.
+  if (!symbol || symbol.length > 80 || /[,;\s]/.test(symbol)) throw badRequest("Use one stock symbol per request.");
   const quoteUrl = new URL("https://api.twelvedata.com/quote");
   quoteUrl.searchParams.set("symbol", symbol);
   quoteUrl.searchParams.set("apikey", apiKey);
-
-  let priceJson = null;
-  let priceCached = false;
-  let priceStale = false;
-  let priceUpdatedAt = null;
-  let priceError = null;
-  try {
-    const priceData = await cachedJson(`stock-price:${symbol}`, DEFAULT_CACHE_TTL_SECONDS, () => fetchJson(priceUrl.toString(), { service: "Twelve Data Price", retries: 1 }), ctx);
-    if (isProviderError(priceData.json)) {
-      throw new Error(priceData.json?.message || `Twelve Data price error for ${symbol}`);
+  // /quote supplies current close, currency and exchange in one credit. Do not also
+  // call /price, or use previous_close as if it were the current price.
+  const validate = (raw) => {
+    const price = firstNumber(raw?.close, raw?.price);
+    if (!Number.isFinite(price) || price <= 0 || !/^[A-Z]{3}$/.test(upper(raw?.currency))) {
+      const error = new Error(`Invalid stock quote: ${symbol}`);
+      error.status = 502;
+      throw error;
     }
-    priceJson = priceData.json;
-    priceCached = priceData.cached;
-    priceStale = priceData.stale || false;
-    priceUpdatedAt = priceData.updatedAt;
-  } catch (error) {
-    // 不要因为 /price 一次失败就直接判定股票/ETF失败；/quote 经常仍然能返回 close/previous_close。
-    priceError = error;
-  }
-
-  let quoteJson = null;
-  let quoteCached = false;
-  let quoteStale = false;
-  let quoteUpdatedAt = null;
-  try {
-    const quoteData = await cachedJson(`stock-quote:${symbol}`, DEFAULT_CACHE_TTL_SECONDS, () => fetchJson(quoteUrl.toString(), { service: "Twelve Data Quote", retries: 1 }), ctx);
-    if (!isProviderError(quoteData.json)) {
-      quoteJson = quoteData.json;
-      quoteCached = quoteData.cached;
-      quoteStale = quoteData.stale || false;
-      quoteUpdatedAt = quoteData.updatedAt;
-    }
-  } catch (_) {
-    quoteJson = null;
-  }
-
-  const sourcePrice = firstNumber(priceJson?.price, quoteJson?.close, quoteJson?.price, quoteJson?.previous_close);
-  if (!Number.isFinite(sourcePrice)) throw new Error(priceError ? cleanErrorMessage(priceError) : `Stock price not found: ${symbol}`);
-
-  const sourceCurrency = upper(quoteJson?.currency || inferStockCurrency(symbol) || "USD");
+  };
+  const data = await cachedJson(`stock-quote-v2:${symbol}`, DEFAULT_CACHE_TTL_SECONDS,
+    () => fetchJson(quoteUrl.toString(), { service: "Twelve Data Quote", timeoutMs: 8000, retries: 0 }), ctx, validate);
+  const raw = data.json;
+  const sourcePrice = firstNumber(raw.close, raw.price);
+  const sourceCurrency = upper(raw.currency);
   const fx = await getFxRate(sourceCurrency, targetCurrency, ctx);
-  const provider = priceJson ? "Twelve Data/price" : "Twelve Data/quote fallback";
-  return { price: round(sourcePrice * fx.rate), sourcePrice: round(sourcePrice), sourceCurrency, provider: provider + " + " + fx.provider, cached: Boolean(priceCached || quoteCached), stale: Boolean(priceStale || quoteStale || fx.stale), updatedAt: quoteJson?.datetime || quoteJson?.timestamp || quoteUpdatedAt || priceUpdatedAt || new Date().toISOString(), rawSummary: { name: quoteJson?.name || priceJson?.symbol || symbol, exchange: quoteJson?.exchange, currency: quoteJson?.currency || sourceCurrency, close: quoteJson?.close, previousClose: quoteJson?.previous_close, percentChange: quoteJson?.percent_change } };
-}
-
-function inferStockCurrency(symbol) {
-  // Twelve Data /price 不返回 currency。没有 quote 信息时，常见美股/ETF按 USD 处理。
-  if (/^[A-Z.]{1,8}$/.test(symbol)) return "USD";
-  return "USD";
+  return {
+    price: round(sourcePrice * fx.rate), sourcePrice: round(sourcePrice), sourceCurrency,
+    provider: "Twelve Data/quote + " + fx.provider,
+    cached: Boolean(data.cached), stale: Boolean(data.stale || fx.stale),
+    updatedAt: raw.datetime || raw.timestamp || data.updatedAt,
+    rawSummary: { name: raw.name || symbol, exchange: raw.exchange, mic_code: raw.mic_code,
+      currency: sourceCurrency, close: raw.close, previousClose: raw.previous_close, percentChange: raw.percent_change },
+  };
 }
 
 async function getMetalPrice(symbol, unit, targetCurrency, ctx) {
@@ -1096,33 +1071,57 @@ async function getFxRate(base, quote, ctx) {
   }
 
   const fxUrl = `https://api.frankfurter.dev/v2/rate/${encodeURIComponent(base)}/${encodeURIComponent(quote)}`;
-  const data = await cachedJson(`fx:${base}:${quote}`, DEFAULT_CACHE_TTL_SECONDS, () => fetchJson(fxUrl, { service: "Frankfurter" }), ctx);
+  const validate = (raw) => {
+    if (!(firstNumber(raw?.rate) > 0)) {
+      const error = new Error(`FX rate not found: ${base}/${quote}`);
+      error.status = 502;
+      throw error;
+    }
+  };
+  const data = await cachedJson(`fx:${base}:${quote}`, DEFAULT_CACHE_TTL_SECONDS,
+    () => fetchJson(fxUrl, { service: "Frankfurter", timeoutMs: 6000, retries: 0 }), ctx, validate);
   const rate = firstNumber(data.json?.rate);
   if (!Number.isFinite(rate)) throw new Error(`FX rate not found: ${base}/${quote}`);
   return { rate, provider: "Frankfurter", cached: data.cached, stale: data.stale || false, updatedAt: data.json?.date || data.updatedAt };
 }
 
-async function cachedJson(cacheKey, ttlSeconds, fetcher, ctx) {
+async function cachedJson(cacheKey, ttlSeconds, fetcher, ctx, validate = () => {}) {
+  if (pendingCacheLoads.has(cacheKey)) return pendingCacheLoads.get(cacheKey);
+  const pending = loadCachedJson(cacheKey, ttlSeconds, fetcher, ctx, validate);
+  pendingCacheLoads.set(cacheKey, pending);
+  try { return await pending; }
+  finally { pendingCacheLoads.delete(cacheKey); }
+}
+
+async function loadCachedJson(cacheKey, ttlSeconds, fetcher, ctx, validate) {
   const now = Date.now();
   const cacheUrl = `https://asset-quote-cache.local/${encodeURIComponent(cacheKey)}`;
   const cacheRequest = new Request(cacheUrl, { method: "GET" });
   let cachedPayload = null;
-
   try {
     if (typeof caches !== "undefined" && caches.default) {
       const cached = await caches.default.match(cacheRequest);
-      if (cached) cachedPayload = await cached.json().catch(() => null);
-      if (cachedPayload?.json && Number(cachedPayload.expiresAt || 0) > now) return { ...cachedPayload, cached: true, stale: false };
+      const payload = cached ? await cached.json() : null;
+      if (payload?.json && now < Number(payload.expiresAt) + STALE_CACHE_SECONDS * 1000) {
+        validate(payload.json);
+        cachedPayload = payload;
+        if (Number(payload.expiresAt) > now) return { ...payload, cached: true, stale: false };
+      }
     }
   } catch (_) {}
-
   try {
     const json = await fetcher();
-    const payload = { json, updatedAt: new Date().toISOString(), expiresAt: now + ttlSeconds * 1000, cached: false, stale: false };
+    // Validate before caching, so an HTTP 200 provider error or incomplete quote
+    // never replaces a usable value for the next fifteen minutes.
+    validate(json);
+    const payload = { json, updatedAt: new Date().toISOString(), expiresAt: Date.now() + ttlSeconds * 1000, cached: false, stale: false };
     try {
-      if (typeof caches !== "undefined" && caches.default && ctx?.waitUntil) {
+      if (typeof caches !== "undefined" && caches.default) {
         const response = new Response(JSON.stringify(payload), { headers: { "content-type": "application/json; charset=utf-8", "cache-control": `public, max-age=${STALE_CACHE_SECONDS}` } });
-        ctx.waitUntil(caches.default.put(cacheRequest, response.clone()).catch(() => undefined));
+        const write = caches.default.put(cacheRequest, response).catch(() => undefined);
+        if (ctx?.waitUntil) ctx.waitUntil(write);
+        // Publish to cache before releasing single-flight, closing the next-request gap.
+        await write;
       }
     } catch (_) {}
     return payload;
@@ -1131,7 +1130,6 @@ async function cachedJson(cacheKey, ttlSeconds, fetcher, ctx) {
     throw error;
   }
 }
-
 
 async function fetchText(url, { service = "upstream", timeoutMs = FETCH_TIMEOUT_MS, headers = {} } = {}) {
   const controller = new AbortController();
@@ -1167,12 +1165,22 @@ async function fetchJson(url, { service = "upstream", timeoutMs = FETCH_TIMEOUT_
       const res = await fetch(url, { headers, signal: controller.signal });
       const text = await res.text();
       let json;
-      try { json = text ? JSON.parse(text) : null; } catch (_) { throw new Error(`${service} returned non-JSON response: HTTP ${res.status}`); }
+      try { json = text ? JSON.parse(text) : null; } catch (_) {
+        const error = new Error(`${service} returned non-JSON response: HTTP ${res.status}`);
+        error.status = res.status === 429 ? 429 : 502;
+        throw error;
+      }
       if (!res.ok) {
         const message = json?.message || json?.error || json?.error_message || JSON.stringify(json).slice(0, 240);
         const err = new Error(`${service} HTTP ${res.status}: ${message}`);
-        err.status = res.status >= 500 ? 502 : (res.status === 429 || res.status === 408 ? 504 : 400);
+        err.status = res.status === 429 ? 429 : res.status >= 500 ? 502 : res.status === 408 ? 504 : 400;
         throw err;
+      }
+      if (service.startsWith("Twelve Data") && isProviderError(json)) {
+        const error = new Error(`${service}: ${json?.message || "Invalid provider response"}`);
+        const code = Number(json?.code);
+        error.status = code === 429 ? 429 : code === 400 || code === 404 ? 400 : 502;
+        throw error;
       }
       return json;
     } catch (error) {
@@ -1277,7 +1285,7 @@ function round(value, digits = 8) { const n = Number(value); if (!Number.isFinit
 function sum(values) { return values.reduce((acc, value) => acc + (Number(value) || 0), 0); }
 function badRequest(message) { const e = new Error(message); e.status = 400; return e; }
 function cleanErrorMessage(error) { return String(error?.message || error || "Unknown error").replace(/apikey=[^&\s]+/gi, "apikey=***").slice(0, 500); }
-function toErrorPayload(error) { return { ok: false, error: cleanErrorMessage(error), code: error?.status === 400 ? "BAD_REQUEST" : error?.status === 401 ? "UNAUTHORIZED" : error?.status === 504 ? "UPSTREAM_TIMEOUT" : "INTERNAL_ERROR", version: VERSION }; }
+function toErrorPayload(error) { return { ok: false, error: cleanErrorMessage(error), code: error?.status === 400 ? "BAD_REQUEST" : error?.status === 401 ? "UNAUTHORIZED" : error?.status === 429 ? "RATE_LIMITED" : error?.status === 504 ? "UPSTREAM_TIMEOUT" : error?.status === 502 ? "UPSTREAM_ERROR" : "INTERNAL_ERROR", version: VERSION }; }
 function safeEqual(a, b) { a = String(a || ""); b = String(b || ""); return a.length === b.length && a === b; }
 
 function jsonResponse(data, status = 200) {
@@ -1288,7 +1296,7 @@ function jsonResponse(data, status = 200) {
   } catch (error) {
     body = JSON.stringify({ ok: false, error: "Failed to serialize response", detail: cleanErrorMessage(error), version: VERSION });
   }
-  return withCors(new Response(body, { status: safeStatus, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } }));
+  return withCors(new Response(body, { status: safeStatus, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...(safeStatus === 429 ? { "retry-after": "60" } : {}) } }));
 }
 function htmlResponse(html, status = 200) { return withCors(new Response(html, { status, headers: { "content-type": "text/html; charset=utf-8" } })); }
 function withCors(response) {
